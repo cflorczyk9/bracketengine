@@ -2627,66 +2627,28 @@ function shareEmail() {
 // ── EXPORT PICKS ──
 
 function exportPicks() {
-  const roundNames = ['Round of 64', 'Round of 32', 'Sweet 16', 'Elite 8'];
+  const roundNames = ['R64', 'R32', 'S16', 'E8'];
   const cfg = BRACKET_CONFIG;
   const regionOrder = [cfg.topLeft, cfg.topRight, cfg.bottomLeft, cfg.bottomRight];
-  const picks = { regions: {}, finalFour: {}, champion: null };
+  let lines = [];
 
   for (const rName of regionOrder) {
-    const rPicks = {};
     regions[rName].forEach((round, ri) => {
-      const games = [];
-      round.forEach(m => {
-        if (m.t1 || m.t2) {
-          games.push({
-            matchup: [
-              m.s1 ? `(${m.s1}) ${m.t1}` : m.t1 || 'TBD',
-              m.s2 ? `(${m.s2}) ${m.t2}` : m.t2 || 'TBD'
-            ],
-            winner: m.w || null
-          });
-        }
-      });
-      if (games.length) rPicks[roundNames[ri]] = games;
+      const winners = [];
+      round.forEach(m => { if (m.w) winners.push(m.w); });
+      if (winners.length) lines.push(`${rName} ${roundNames[ri]}: ${winners.join(', ')}`);
     });
-    picks.regions[rName] = rPicks;
   }
 
-  // Semifinal picks
   const s1 = ff.semi1;
   const s2 = ff.semi2;
-  picks.finalFour = {
-    semifinal1: {
-      label: `${cfg.semi1[0]} vs ${cfg.semi1[1]}`,
-      matchup: [
-        s1.s1 ? `(${s1.s1}) ${s1.t1}` : s1.t1 || 'TBD',
-        s1.s2 ? `(${s1.s2}) ${s1.t2}` : s1.t2 || 'TBD'
-      ],
-      winner: s1.w || null
-    },
-    semifinal2: {
-      label: `${cfg.semi2[0]} vs ${cfg.semi2[1]}`,
-      matchup: [
-        s2.s1 ? `(${s2.s1}) ${s2.t1}` : s2.t1 || 'TBD',
-        s2.s2 ? `(${s2.s2}) ${s2.t2}` : s2.t2 || 'TBD'
-      ],
-      winner: s2.w || null
-    }
-  };
+  const ffWinners = [];
+  if (s1.w) ffWinners.push(s1.w);
+  if (s2.w) ffWinners.push(s2.w);
+  if (ffWinners.length) lines.push(`Final Four: ${ffWinners.join(', ')}`);
+  if (ff.champ.w) lines.push(`Championship: ${ff.champ.w}`);
 
-  // Championship
-  const c = ff.champ;
-  picks.championship = {
-    matchup: [
-      c.s1 ? `(${c.s1}) ${c.t1}` : c.t1 || 'TBD',
-      c.s2 ? `(${c.s2}) ${c.t2}` : c.t2 || 'TBD'
-    ],
-    winner: c.w || null
-  };
-  picks.champion = c.w || null;
-
-  const json = JSON.stringify(picks, null, 2);
-  const prompt = `Here are my March Madness 2026 bracket picks. Go to https://fantasy.espn.com/games/tournament-challenge-bracket-2026 and fill in my bracket by clicking the winning team in each matchup, round by round, starting from the Round of 64.\n\n${json}`;
+  const prompt = `Fill in my ESPN Tournament Challenge bracket at https://fantasy.espn.com/games/tournament-challenge-bracket-2026\n\nFor each round, click the winning team listed below. Work left to right, top to bottom within each round.\n\n${lines.join('\n')}`;
 
   navigator.clipboard.writeText(prompt).then(() => {
     showToast('Picks copied — paste into Claude');
