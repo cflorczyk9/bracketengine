@@ -825,11 +825,11 @@
     font-family: 'IBM Plex Mono', monospace;
     font-size: 0.72rem;
     font-weight: 600;
-    color: rgba(255,255,255,0.15);
+    color: #fff;
     padding-right: 12px;
     white-space: nowrap;
   }
-  .mb-team.mb-winner .mb-prob { color: rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.4); }
+  .mb-team.mb-winner .mb-prob { color: #fff; }
 
   /* FF/Champ in mobile */
   .mb-ff-section {
@@ -1055,7 +1055,7 @@
   }
   .inj-row:last-child { border-bottom: none; }
   .inj-team { color: #fff; font-weight: 600; min-width: 120px; }
-  .inj-delta { font-family: 'IBM Plex Mono', monospace; color: #f85149; font-weight: 600; min-width: 65px; font-size: 0.78rem; }
+  .inj-delta { font-family: 'IBM Plex Mono', monospace; color: #fff; font-weight: 600; min-width: 65px; font-size: 0.78rem; }
   .inj-detail { color: rgba(255,255,255,0.4); font-size: 0.72rem; flex: 1; }
 
   /* Upset rows */
@@ -1071,7 +1071,7 @@
   .upset-winner { color: var(--mx); font-weight: 600; min-width: 120px; }
   .upset-over { color: rgba(255,255,255,0.25); font-size: 0.72rem; margin: 0 8px; }
   .upset-loser { color: rgba(255,255,255,0.4); min-width: 110px; }
-  .upset-prob { font-family: 'IBM Plex Mono', monospace; color: var(--mx); font-weight: 600; font-size: 0.78rem; margin-left: auto; }
+  .upset-prob { font-family: 'IBM Plex Mono', monospace; color: #fff; font-weight: 600; font-size: 0.78rem; margin-left: auto; }
 
   /* Probability table */
   .prob-round-label {
@@ -1118,7 +1118,7 @@
   .prob-region { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; min-width: 70px; letter-spacing: 0.5px; }
   .prob-matchup { flex: 1; color: rgba(255,255,255,0.5); }
   .prob-matchup strong { color: #fff; font-weight: 600; }
-  .prob-pct { font-family: 'IBM Plex Mono', monospace; font-weight: 600; min-width: 58px; text-align: right; }
+  .prob-pct { font-family: 'IBM Plex Mono', monospace; font-weight: 600; min-width: 58px; text-align: right; color: #fff !important; }
   .prob-bar-wrap { width: 100px; height: 5px; background: rgba(255,255,255,0.04); border-radius: 2px; margin-left: 10px; overflow: hidden; }
   .prob-bar-fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
 
@@ -1399,7 +1399,7 @@
 
   <div class="bd-grid">
     <div class="bd-card">
-      <div class="bd-card-title" style="color:var(--mx)" onclick="toggleBdCard(this)"><span>Injury Adjustments</span><span class="bd-chevron">▶</span></div>
+      <div class="bd-card-title" style="color:var(--mx)" onclick="toggleGridCards()"><span>Injury Adjustments</span><span class="bd-chevron">▶</span></div>
       <div class="bd-card-body">
         <div class="bd-card-sub">Applied to blended rating after KenPom + Torvik merge</div>
         <div id="injuryTable"></div>
@@ -1407,7 +1407,7 @@
     </div>
 
     <div class="bd-card">
-      <div class="bd-card-title" style="color:var(--mx)" onclick="toggleBdCard(this)"><span>Upset Picks</span><span class="bd-chevron">▶</span></div>
+      <div class="bd-card-title" style="color:var(--mx)" onclick="toggleGridCards()"><span>Upset Picks</span><span class="bd-chevron">▶</span></div>
       <div class="bd-card-body">
         <div class="bd-card-sub">Games where the model favors the lower seed</div>
         <div id="upsetTable"></div>
@@ -1694,7 +1694,7 @@ function renderHalf(containerId, leftRegion, rightRegion) {
   }
 }
 
-const REGION_COLORS = { EAST: '#00ff41', WEST: '#f85149', SOUTH: '#fff', MIDWEST: '#00cc88' };
+const REGION_COLORS = { EAST: '#00ff41', WEST: '#00ff41', SOUTH: '#00ff41', MIDWEST: '#00ff41' };
 
 function renderLabels(containerId, leftName, rightName) {
   const el = document.getElementById(containerId);
@@ -2089,6 +2089,14 @@ function toggleBdCard(title) {
   title.classList.toggle('open');
   const body = title.nextElementSibling;
   if (body) body.classList.toggle('open');
+}
+
+function toggleGridCards() {
+  const titles = document.querySelectorAll('.bd-grid .bd-card-title');
+  const bodies = document.querySelectorAll('.bd-grid .bd-card-body');
+  const isOpen = titles[0] && titles[0].classList.contains('open');
+  titles.forEach(t => isOpen ? t.classList.remove('open') : t.classList.add('open'));
+  bodies.forEach(b => isOpen ? b.classList.remove('open') : b.classList.add('open'));
 }
 
 function renderBreakdown() {
