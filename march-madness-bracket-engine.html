@@ -1,0 +1,2534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>March Madness 2026 — Bracket Engine</title>
+<meta name="description" content="March Madness bracket simulator blending KenPom and Torvik efficiency ratings. Weighted probabilities, injury adjustments, and log5 matchup modeling for the 2026 tournament.">
+<meta property="og:title" content="March Madness 2026 — Bracket Engine">
+<meta property="og:description" content="Simulate your bracket with blended KenPom + Torvik ratings, injury adjustments, and weighted probabilities. Every run is different.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://upload.wikimedia.org/wikipedia/en/thumb/2/28/March_Madness_logo.svg/1200px-March_Madness_logo.svg.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="March Madness 2026 — Bracket Engine">
+<meta name="twitter:description" content="Bracket simulator blending KenPom + Torvik ratings with injury adjustments. Every run is unique.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>▣</text></svg>">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@300;400;500;600;700&display=swap');
+
+  :root {
+    --mx: #00ff41;
+    --mx-r: 0;
+    --mx-g: 255;
+    --mx-b: 65;
+    --mx-bg: #001a00;
+    --mx-bg2: #001200;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  /* Hide all scrollbars except body's vertical */
+  .bracket-row::-webkit-scrollbar,
+  .final-four::-webkit-scrollbar,
+  .log-inner::-webkit-scrollbar,
+  .breakdown::-webkit-scrollbar,
+  .bd-card::-webkit-scrollbar,
+  .mobile-bracket::-webkit-scrollbar,
+  .page-wrap::-webkit-scrollbar { display: none; }
+  .bracket-row, .final-four, .log-inner, .breakdown, .bd-card, .mobile-bracket, .page-wrap {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  body {
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+    background: #000;
+    color: #c0c0c0;
+    min-height: 100vh;
+    padding: 20px;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 80% 60% at 50% 0%, rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.04) 0%, transparent 60%),
+      linear-gradient(180deg, rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.018) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.018) 1px, transparent 1px);
+    background-size: 100% 100%, 48px 48px, 48px 48px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.04) 2px,
+      rgba(0,0,0,0.04) 4px
+    );
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .page-wrap {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 1220px;
+  }
+
+  /* Header */
+  .header {
+    text-align: center;
+    margin-bottom: 10px;
+    position: relative;
+    width: 100%;
+    padding: 0 220px;
+  }
+
+  .header-actions {
+    position: absolute;
+    top: 50%;
+    right: 0;
+    transform: translateY(-50%);
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .header .tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--mx);
+    opacity: 0.7;
+    margin-bottom: 8px;
+  }
+
+  .header h1 {
+    font-size: clamp(1.8rem, 4vw, 2.5rem);
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: #fff;
+  }
+
+  .header h1 span {
+    background: linear-gradient(135deg, var(--mx), var(--mx));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 40px rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.15);
+  }
+
+  .header .subtitle {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 300;
+    color: rgba(255,255,255,0.35);
+    margin-top: 4px;
+  }
+
+  /* Round labels bar */
+  .round-labels {
+    display: flex;
+    justify-content: center;
+    gap: 0;
+    margin-bottom: 4px;
+    width: 100%;
+  }
+
+  .round-labels .rl {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.25);
+    text-align: center;
+    padding: 4px 0;
+  }
+
+  /* Region label */
+  .region-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .region-label-left { text-align: left; padding-left: 6px; }
+  .region-label-right { text-align: right; padding-right: 6px; }
+
+  /* Bracket rows */
+  .bracket-half {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+  }
+
+  .bracket-labels-row {
+    display: flex;
+    width: 100%;
+    max-width: 1220px;
+    justify-content: space-between;
+    padding: 0 2px;
+  }
+
+  .bracket-row {
+    display: flex;
+    height: 660px;
+    align-items: stretch;
+  }
+
+  .round {
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+  }
+
+  .match-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .team-pair { width: 145px; flex-shrink: 0; }
+
+  .team {
+    height: 30px;
+    display: flex;
+    align-items: center;
+    padding: 0 0 0 0;
+    font-size: 0.78rem;
+    font-weight: 500;
+    background: #080808;
+    border: 1px solid rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.07);
+    cursor: pointer;
+    transition: all 0.15s;
+    color: rgba(255,255,255,0.6);
+    overflow: hidden;
+  }
+
+  .team:first-child { border-radius: 4px 4px 0 0; border-bottom: none; }
+  .team:last-child { border-radius: 0 0 4px 4px; }
+  .team:hover:not(.empty) { background: #0a0f0a; border-color: rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.15); }
+
+  .team.winner {
+    background: var(--mx-bg);
+    border-color: rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.4);
+    color: var(--mx);
+  }
+
+  .team.winner:first-child { border-bottom: none; }
+  .team.loser { opacity: 0.2; }
+  .team.empty { cursor: default; color: rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.1); }
+
+  .team .seed {
+    min-width: 26px;
+    text-align: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.3);
+    background: #040404;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-right: 1px solid rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.07);
+    flex-shrink: 0;
+  }
+
+  .team.winner .seed {
+    color: rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.7);
+    background: var(--mx-bg2);
+    border-right-color: rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.4);
+  }
+
+  .team .name {
+    padding: 0 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+    letter-spacing: 0.01em;
+  }
+
+  /* Upset notifier on game pairs */
+  .team-pair { position: relative; }
+  .team-pair:has(.upset-pip) {
+    box-shadow: -2px 0 0 0 rgba(255,255,255,0.7);
+    border-radius: 3px;
+  }
+  .upset-pip {
+    position: absolute;
+    top: -1px;
+    right: -1px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.42rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: #000;
+    background: rgba(255,255,255,0.85);
+    padding: 1px 4px;
+    border-radius: 0 3px 0 3px;
+    z-index: 2;
+    line-height: 1.2;
+    animation: glitch-flicker 4s infinite;
+    animation-delay: calc(var(--flicker-offset, 0) * 1s);
+  }
+
+  @keyframes glitch-flicker {
+    0%, 100% { opacity: 1; }
+    92% { opacity: 1; }
+    93% { opacity: 0.1; }
+    94% { opacity: 0.9; }
+    95% { opacity: 0.15; }
+    96% { opacity: 1; }
+    97% { opacity: 0.05; }
+    98% { opacity: 1; }
+  }
+  @keyframes glitch-flicker-2 {
+    0%, 100% { opacity: 1; }
+    45% { opacity: 1; }
+    46% { opacity: 0.08; }
+    47% { opacity: 0.85; }
+    48% { opacity: 0.1; }
+    49% { opacity: 1; }
+  }
+  @keyframes glitch-flicker-3 {
+    0%, 100% { opacity: 1; }
+    70% { opacity: 1; }
+    71% { opacity: 0.12; }
+    72% { opacity: 1; }
+    73% { opacity: 0.06; }
+    74% { opacity: 0.9; }
+    75% { opacity: 1; }
+  }
+
+  /* Left connectors */
+  .conn-col { display: flex; flex-direction: column; width: 20px; flex-shrink: 0; }
+  .conn-pair { flex: 1; position: relative; }
+  .conn-pair .h-top { position: absolute; top: 25%; left: 0; width: 50%; border-top: 1px solid rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.12); }
+  .conn-pair .h-bot { position: absolute; top: 75%; left: 0; width: 50%; border-top: 1px solid rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.12); }
+  .conn-pair::before { content: ''; position: absolute; left: 50%; top: 25%; bottom: 25%; border-left: 1px solid rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.12); }
+  .conn-pair::after { content: ''; position: absolute; top: 50%; left: 50%; right: 0; border-top: 1px solid rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.12); }
+
+  /* Right connectors (mirrored) */
+  .conn-col-r { display: flex; flex-direction: column; width: 20px; flex-shrink: 0; }
+  .conn-pair-r { flex: 1; position: relative; }
+  .conn-pair-r .h-top { position: absolute; top: 25%; right: 0; width: 50%; border-top: 1px solid rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.12); }
+  .conn-pair-r .h-bot { position: absolute; top: 75%; right: 0; width: 50%; border-top: 1px solid rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.12); }
+  .conn-pair-r::before { content: ''; position: absolute; right: 50%; top: 25%; bottom: 25%; border-left: 1px solid rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.12); }
+  .conn-pair-r::after { content: ''; position: absolute; top: 50%; left: 0; right: 50%; border-top: 1px solid rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.12); }
+
+  /* Feed lines */
+  .feed { width: 14px; flex-shrink: 0; display: flex; align-items: center; }
+  .feed .fl { width: 100%; border-top: 1px solid rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.12); }
+
+  /* Center gap between left/right regions */
+  .bracket-gap {
+    width: 28px;
+    flex-shrink: 0;
+  }
+
+  /* ───── FINAL FOUR SECTION ───── */
+  .final-four {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 20px 0;
+    gap: 0;
+  }
+
+  .ff-label-row {
+    display: flex;
+    justify-content: center;
+    gap: 0;
+    width: 100%;
+    margin-bottom: 6px;
+  }
+
+  .ff-label-row .ff-label:nth-child(1) { width: 155px; }
+  .ff-label-row .ff-label:nth-child(2) { width: calc(24px + 155px + 24px); }
+  .ff-label-row .ff-label:nth-child(3) { width: 155px; }
+
+  .ff-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--mx);
+    text-align: center;
+  }
+
+  .ff-bracket-row {
+    display: flex;
+    align-items: center;
+  }
+
+  .ff-round { flex-shrink: 0; }
+  .ff-pair { width: 155px; }
+  .ff-pair .team { height: 34px; font-size: 0.82rem; }
+  .ff-pair .team .seed { min-width: 28px; font-size: 0.68rem; }
+
+  /* Championship team colors — neon cyan (top) and neon red (bottom) */
+  .champ-pair .team.champ-t1 {
+    border-color: rgba(0,220,255,0.4) !important;
+    background: #001014 !important;
+    color: #00ddff;
+    text-shadow: 0 0 6px rgba(0,220,255,0.15);
+  }
+  .champ-pair .team.champ-t1.empty {
+    color: rgba(0,220,255,0.3);
+    text-shadow: none;
+  }
+  .champ-pair .team.champ-t1 .seed {
+    border-right-color: rgba(0,220,255,0.3);
+    background: #000a0e;
+    color: rgba(0,220,255,0.5);
+  }
+  .champ-pair .team.champ-t1.empty .seed {
+    color: rgba(0,220,255,0.2);
+  }
+  .champ-pair .team.champ-t1:hover:not(.empty) {
+    background: #001820 !important;
+    border-color: rgba(0,220,255,0.6) !important;
+    box-shadow: 0 0 12px rgba(0,220,255,0.08);
+  }
+
+  .champ-pair .team.champ-t2 {
+    border-color: rgba(255,0,50,0.4) !important;
+    background: #140008 !important;
+    color: #ff1a44;
+    text-shadow: 0 0 6px rgba(255,0,50,0.15);
+  }
+  .champ-pair .team.champ-t2.empty {
+    color: rgba(255,0,50,0.3);
+    text-shadow: none;
+  }
+  .champ-pair .team.champ-t2 .seed {
+    border-right-color: rgba(255,0,50,0.3);
+    background: #0e0004;
+    color: rgba(255,0,50,0.5);
+  }
+  .champ-pair .team.champ-t2.empty .seed {
+    color: rgba(255,0,50,0.2);
+  }
+  .champ-pair .team.champ-t2:hover:not(.empty) {
+    background: #200010 !important;
+    border-color: rgba(255,0,50,0.6) !important;
+    box-shadow: 0 0 12px rgba(255,0,50,0.08);
+  }
+
+  /* Winner with neon glow */
+  .champ-pair .team.champ-t1.winner {
+    background: #001820 !important;
+    border-color: rgba(0,220,255,0.6) !important;
+    color: #00eeff;
+    text-shadow: 0 0 8px rgba(0,220,255,0.25);
+    box-shadow: inset 0 0 12px rgba(0,220,255,0.04);
+  }
+  .champ-pair .team.champ-t1.winner:first-child { border-bottom: none; }
+  .champ-pair .team.champ-t1.winner .seed {
+    color: #00ccee;
+    background: #001018;
+    border-right-color: rgba(0,220,255,0.5);
+  }
+
+  .champ-pair .team.champ-t2.winner {
+    background: #200010 !important;
+    border-color: rgba(255,0,50,0.6) !important;
+    color: #ff2255;
+    text-shadow: 0 0 8px rgba(255,0,50,0.25);
+    box-shadow: inset 0 0 12px rgba(255,0,50,0.04);
+  }
+  .champ-pair .team.champ-t2.winner:first-child { border-bottom: none; }
+  .champ-pair .team.champ-t2.winner .seed {
+    color: #ff1a44;
+    background: #180008;
+    border-right-color: rgba(255,0,50,0.5);
+  }
+
+  .grand-champ-wrap {
+    text-align: center;
+    margin-top: 14px;
+  }
+
+  .grand-champ-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--mx);
+  }
+
+  .grand-champ-box {
+    margin-top: 4px;
+    width: 160px;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 5px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    letter-spacing: 0.02em;
+  }
+
+  .grand-champ-box.has {
+    border: 1px solid var(--mx);
+    color: var(--mx);
+    box-shadow: 0 0 24px rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.15), 0 0 60px rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.05);
+  }
+  .grand-champ-box.has.champ-blue {
+    background: linear-gradient(135deg, rgba(0,220,255,0.1), rgba(0,220,255,0.03));
+    border-color: rgba(0,220,255,0.6);
+    color: #00eeff;
+    box-shadow: 0 0 24px rgba(0,220,255,0.15), 0 0 60px rgba(0,220,255,0.05);
+    text-shadow: 0 0 10px rgba(0,220,255,0.2);
+  }
+  .grand-champ-box.has.champ-red {
+    background: linear-gradient(135deg, rgba(255,0,50,0.1), rgba(255,0,50,0.03));
+    border-color: rgba(255,0,50,0.6);
+    color: #ff2255;
+    box-shadow: 0 0 24px rgba(255,0,50,0.15), 0 0 60px rgba(255,0,50,0.05);
+    text-shadow: 0 0 10px rgba(255,0,50,0.2);
+  }
+
+  .grand-champ-box.none {
+    background: #050505;
+    border: 1px dashed rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.2);
+    color: rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.2);
+  }
+
+  /* Feed lines — blue left, red right */
+  .feed-gf { width: 24px; flex-shrink: 0; display: flex; align-items: center; }
+  .feed-gf .fl { width: 100%; border-top: 1px solid rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.3); }
+  .feed-gf.feed-blue .fl { border-top-color: rgba(0,220,255,0.4); }
+  .feed-gf.feed-red .fl { border-top-color: rgba(255,0,50,0.4); }
+
+  /* Remove old bracket-merge connectors — not used */
+  .conn-col-gf { display: none; }
+  .conn-col-gf-r { display: none; }
+
+  .reset-btn {
+    margin-top: 20px;
+    padding: 8px 26px;
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.35);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .reset-btn:hover { border-color: rgba(255,255,255,0.2); color: #ccc; }
+
+  .header-actions .reset-btn { margin-top: 0; }
+  .header-actions .share-btn { display: none; }
+  .header-actions .share-btn.on { display: inline-flex; }
+
+  .share-btn {
+    padding: 8px 26px;
+    background: rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.06);
+    border: 1px solid rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.25);
+    color: var(--mx);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: none;
+    align-items: center;
+    gap: 6px;
+  }
+  .share-btn.on { display: inline-flex; }
+  .share-btn:hover { border-color: rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.5); background: rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.1); color: #33ff66; }
+  .share-btn svg { width: 14px; height: 14px; fill: currentColor; }
+
+  .share-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.65);
+    z-index: 999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.15s ease;
+  }
+  .share-overlay.on { display: flex; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  .share-panel {
+    background: #080808;
+    border: 1px solid rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.15);
+    border-radius: 12px;
+    padding: 28px 32px;
+    width: 90%;
+    max-width: 520px;
+    position: relative;
+    animation: panelIn 0.2s ease;
+  }
+  @keyframes panelIn { from { opacity: 0; transform: translateY(10px) scale(0.97); } to { opacity: 1; transform: none; } }
+
+  .share-panel-title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--mx);
+    margin-bottom: 16px;
+  }
+
+  .share-preview {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 8px;
+    padding: 16px 18px;
+    margin-bottom: 18px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    line-height: 1.65;
+    color: rgba(255,255,255,0.55);
+    max-height: 180px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .share-preview::-webkit-scrollbar { width: 4px; }
+  .share-preview::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+  .share-preview .sp-champ { color: #fff; font-weight: 600; font-size: 0.78rem; }
+  .share-preview .sp-heading { color: rgba(255,255,255,0.35); font-size: 0.6rem; letter-spacing: 1.5px; text-transform: uppercase; }
+  .share-preview .sp-team { color: rgba(255,255,255,0.7); }
+  .share-preview .sp-upset { color: rgba(255,255,255,0.7); }
+  .share-preview .sp-link { color: var(--mx); }
+
+  .share-close {
+    position: absolute;
+    top: 16px; right: 18px;
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.3);
+    font-size: 1.4rem;
+    cursor: pointer;
+    line-height: 1;
+    transition: color 0.15s;
+  }
+  .share-close:hover { color: #fff; }
+
+  .share-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .share-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-decoration: none;
+    color: inherit;
+  }
+  .share-option:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.12); }
+
+  .share-icon {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 1rem;
+  }
+  .share-icon.copy { background: rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.12); color: var(--mx); }
+  .share-icon.x { background: rgba(255,255,255,0.08); color: #fff; }
+  .share-icon.li { background: rgba(10,102,194,0.15); color: #0a66c2; }
+  .share-icon.email { background: rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.12); color: var(--mx); }
+
+  .share-label { font-size: 0.82rem; font-weight: 500; color: #e0e0e0; }
+  .share-sublabel { font-size: 0.68rem; color: rgba(255,255,255,0.35); margin-top: 2px; }
+
+  .share-toast {
+    position: fixed;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: #0a0a0a;
+    border: 1px solid rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.3);
+    color: var(--mx);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    padding: 10px 22px;
+    border-radius: 8px;
+    z-index: 1100;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.3s ease;
+  }
+  .share-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* Upset counter badge */
+  .upset-badge {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 8px;
+    padding: 6px 16px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 20px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.72rem;
+    color: rgba(255,255,255,0.7);
+    animation: bdIn 0.4s ease;
+  }
+  .upset-badge.on { display: inline-flex; }
+  .upset-badge .ub-num {
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: #fff;
+  }
+  .upset-badge .ub-label { font-weight: 400; }
+
+  /* ── MOBILE BRACKET VIEW ── */
+  .mobile-bracket { display: none; }
+
+  .mb-round {
+    margin-bottom: 16px;
+  }
+  .mb-round-header {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.4);
+    padding: 8px 0 6px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    margin-bottom: 6px;
+  }
+  .mb-region-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 6px 0 3px;
+  }
+  .mb-game {
+    display: flex;
+    flex-direction: column;
+    background: #050505;
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 5px;
+    margin-bottom: 5px;
+    overflow: hidden;
+    position: relative;
+  }
+  .mb-game:has(.mb-upset-pip) {
+    border-color: rgba(255,255,255,0.2);
+    box-shadow: 0 0 8px rgba(255,255,255,0.05);
+  }
+  .mb-upset-pip {
+    position: absolute;
+    top: 0;
+    right: 0;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.5rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: #000;
+    background: rgba(255,255,255,0.85);
+    padding: 2px 6px;
+    border-radius: 0 5px 0 5px;
+    z-index: 2;
+    line-height: 1.2;
+    animation: glitch-flicker 5s infinite;
+  }
+  .mb-team {
+    display: flex;
+    align-items: center;
+    height: 40px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: rgba(255,255,255,0.6);
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  .mb-team:first-child { border-bottom: 1px solid rgba(255,255,255,0.05); }
+  .mb-team:hover:not(.mb-empty) { background: #0a0f0a; }
+  .mb-team.mb-winner {
+    background: var(--mx-bg);
+    color: var(--mx);
+  }
+  .mb-team.mb-loser { opacity: 0.3; }
+  .mb-team.mb-empty { cursor: default; color: rgba(255,255,255,0.1); }
+  .mb-seed {
+    min-width: 36px;
+    text-align: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: rgba(255,255,255,0.25);
+    background: #040404;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-right: 1px solid rgba(255,255,255,0.07);
+    flex-shrink: 0;
+  }
+  .mb-team.mb-winner .mb-seed {
+    color: rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.6);
+    background: var(--mx-bg2);
+    border-right-color: rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.3);
+  }
+  .mb-name {
+    padding: 0 12px;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .mb-prob {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: rgba(255,255,255,0.15);
+    padding-right: 12px;
+    white-space: nowrap;
+  }
+  .mb-team.mb-winner .mb-prob { color: rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.4); }
+
+  /* FF/Champ in mobile */
+  .mb-ff-section {
+    margin-bottom: 16px;
+  }
+  .mb-champ-box {
+    text-align: center;
+    padding: 14px;
+    margin-top: 8px;
+    border-radius: 6px;
+  }
+  .mb-champ-box.has {
+    background: linear-gradient(135deg, rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.1), rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.04));
+    border: 1px solid var(--mx);
+  }
+  .mb-champ-box.none {
+    background: #050505;
+    border: 1px dashed rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.2);
+  }
+  .mb-champ-trophy { font-size: 28px; }
+  .mb-champ-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--mx);
+    margin-top: 4px;
+  }
+  .mb-champ-name {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--mx);
+    margin-top: 4px;
+  }
+  .mb-champ-name.tbd { color: rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.2); font-weight: 500; }
+
+  /* ── MOBILE RESPONSIVE ── */
+  @media (max-width: 1200px) {
+    .page-wrap { min-width: 0; width: 100%; }
+    .header { padding: 0; }
+    .header-actions { position: static; justify-content: center; margin-top: 10px; transform: none; }
+    .bracket-labels-row { max-width: 100%; }
+    .bracket-row {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 8px;
+    }
+    .final-four {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+  }
+
+  @media (max-width: 768px) {
+    body { padding: 12px 8px; }
+
+    .header h1 { font-size: 1.4rem; }
+    .header .tag { font-size: 0.58rem; letter-spacing: 2px; }
+    .header .subtitle { font-size: 0.62rem; }
+
+    .countdown-bar {
+      flex-direction: column;
+      gap: 10px;
+      padding: 10px 12px;
+    }
+    .cd-val { font-size: 1.2rem; min-width: 40px; padding: 3px 5px; }
+    .cd-sep { font-size: 1rem; padding-bottom: 12px; }
+    .cd-info { font-size: 0.62rem; }
+
+    .calc-btn { padding: 12px 32px; font-size: 0.72rem; letter-spacing: 2px; }
+    .prog-wrap { width: 240px; }
+    .log-area { max-width: 100%; }
+    .log-inner { font-size: 0.58rem; }
+
+    /* Hide desktop bracket, show mobile */
+    .bracket-row,
+    .bracket-labels-row,
+    .final-four { display: none !important; }
+
+    .mobile-bracket { display: block; width: 100%; }
+
+    .region-label { font-size: 0.75rem; }
+    .reset-btn { font-size: 0.65rem; padding: 6px 14px; }
+    .share-btn { font-size: 0.65rem; padding: 6px 14px; }
+    .share-panel { padding: 22px 20px; }
+    .share-option { padding: 10px 12px; }
+
+    .breakdown { max-width: 100%; }
+    .bd-grid { grid-template-columns: 1fr; }
+    .bd-card, .bd-card-wide { padding: 16px 14px; }
+  }
+
+  @media (max-width: 480px) {
+    body { padding: 8px 4px; }
+
+    .header { margin-bottom: 8px; }
+    .header h1 { font-size: 1.2rem; }
+    .header .tag { font-size: 0.5rem; letter-spacing: 1.5px; margin-bottom: 4px; }
+    .header .subtitle { font-size: 0.55rem; }
+    .header .subtitle a { font-size: 0.52rem !important; }
+
+    .countdown-bar { padding: 8px 8px; gap: 8px; margin-bottom: 8px; border-radius: 4px; }
+    .cd-val { font-size: 1.05rem; min-width: 34px; padding: 2px 4px; }
+    .cd-sep { font-size: 0.9rem; padding-bottom: 10px; }
+    .cd-lbl { font-size: 0.42rem; }
+    .cd-info { font-size: 0.55rem; }
+
+    .calc-area { margin-bottom: 10px; }
+    .calc-btn { padding: 10px 24px; font-size: 0.65rem; letter-spacing: 1.5px; }
+    .prog-wrap { width: 200px; }
+    .log-inner { font-size: 0.55rem; }
+
+    .mb-team { height: 36px; font-size: 0.82rem; }
+    .mb-seed { min-width: 32px; font-size: 0.68rem; }
+    .mb-name { padding: 0 10px; }
+    .mb-round-header { font-size: 0.72rem; }
+    .mb-region-label { font-size: 0.6rem; }
+    .mb-prob { font-size: 0.62rem; }
+    .mb-champ-name { font-size: 1.15rem; }
+
+    .bd-card-title { font-size: 0.78rem; }
+    .bd-card-sub { font-size: 0.62rem; }
+    .bd-card, .bd-card-wide { padding: 14px 12px; }
+    .inj-row { font-size: 0.72rem; flex-wrap: wrap; gap: 2px; }
+    .inj-team { min-width: 90px; }
+    .inj-delta { font-size: 0.65rem; min-width: 55px; }
+    .inj-detail { font-size: 0.62rem; min-width: 100%; margin-top: 2px; }
+    .upset-row { font-size: 0.72rem; flex-wrap: wrap; gap: 2px; }
+    .upset-round { font-size: 0.58rem; }
+    .upset-winner { min-width: 100px; }
+    .upset-loser { min-width: 90px; }
+    .prob-row { font-size: 0.68rem; flex-wrap: wrap; }
+    .prob-region { font-size: 0.55rem; min-width: 55px; }
+    .prob-bar-wrap { width: 70px; }
+    .prob-pct { min-width: 48px; }
+    .prob-round-label { font-size: 0.65rem; }
+    .bd-method { font-size: 0.7rem; }
+  }
+
+  /* ── BREAKDOWN SECTION ── */
+  .breakdown {
+    width: 100%;
+    max-width: 1000px;
+    margin-top: 28px;
+    animation: bdIn 0.5s ease;
+  }
+  @keyframes bdIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+  .bd-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+    margin-bottom: 24px;
+  }
+
+  .bd-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  @media (max-width: 800px) { .bd-grid { grid-template-columns: 1fr; } }
+
+  .bd-card {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 6px;
+    padding: 20px 24px;
+  }
+  .bd-card-wide {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 6px;
+    padding: 20px 24px;
+    margin-bottom: 14px;
+  }
+  .bd-card-title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.88rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .bd-card-sub {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    color: rgba(255,255,255,0.3);
+    margin-bottom: 14px;
+  }
+
+  /* Injury rows */
+  .inj-row {
+    display: flex;
+    align-items: baseline;
+    padding: 7px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    font-size: 0.82rem;
+  }
+  .inj-row:last-child { border-bottom: none; }
+  .inj-team { color: #fff; font-weight: 600; min-width: 120px; }
+  .inj-delta { font-family: 'IBM Plex Mono', monospace; color: #f85149; font-weight: 600; min-width: 65px; font-size: 0.78rem; }
+  .inj-detail { color: rgba(255,255,255,0.4); font-size: 0.72rem; flex: 1; }
+
+  /* Upset rows */
+  .upset-row {
+    display: flex;
+    align-items: center;
+    padding: 7px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    font-size: 0.82rem;
+  }
+  .upset-row:last-child { border-bottom: none; }
+  .upset-round { font-family: 'IBM Plex Mono', monospace; color: rgba(255,255,255,0.3); font-size: 0.68rem; min-width: 48px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .upset-winner { color: var(--mx); font-weight: 600; min-width: 120px; }
+  .upset-over { color: rgba(255,255,255,0.25); font-size: 0.72rem; margin: 0 8px; }
+  .upset-loser { color: rgba(255,255,255,0.4); min-width: 110px; }
+  .upset-prob { font-family: 'IBM Plex Mono', monospace; color: var(--mx); font-weight: 600; font-size: 0.78rem; margin-left: auto; }
+
+  /* Probability table */
+  .prob-round-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.35);
+    margin-top: 14px;
+    margin-bottom: 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .prob-round-label:first-child { margin-top: 0; }
+
+  .prob-row {
+    display: flex;
+    align-items: center;
+    padding: 4px 0;
+    font-size: 0.8rem;
+  }
+  .prob-region { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; min-width: 70px; letter-spacing: 0.5px; }
+  .prob-matchup { flex: 1; color: rgba(255,255,255,0.5); }
+  .prob-matchup strong { color: #fff; font-weight: 600; }
+  .prob-pct { font-family: 'IBM Plex Mono', monospace; font-weight: 600; min-width: 58px; text-align: right; }
+  .prob-bar-wrap { width: 100px; height: 5px; background: rgba(255,255,255,0.04); border-radius: 2px; margin-left: 10px; overflow: hidden; }
+  .prob-bar-fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
+
+  /* Methodology */
+  .bd-method {
+    font-size: 0.82rem;
+    line-height: 1.75;
+    color: rgba(255,255,255,0.5);
+  }
+  .bd-method p { margin-bottom: 12px; }
+  .bd-method p:last-child { margin-bottom: 0; }
+
+  /* ── ENGINE ADDITIONS ── */
+
+  /* Countdown */
+  .countdown-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 12px 20px;
+    margin-bottom: 12px;
+    background: rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.02);
+    border: 1px solid rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.08);
+    border-radius: 6px;
+    flex-wrap: wrap;
+  }
+  .cd-info {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.72rem;
+    color: rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.35);
+    text-align: center;
+    line-height: 1.6;
+  }
+  .cd-info strong { color: rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.7); font-weight: 600; }
+  .cd-digits {
+    display: flex;
+    gap: 2px;
+    align-items: center;
+  }
+  .cd-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .cd-val {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--mx);
+    min-width: 48px;
+    text-align: center;
+    background: #000;
+    border: 1px solid rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.15);
+    border-radius: 4px;
+    padding: 5px 8px;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 8px rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.3);
+  }
+  .cd-lbl {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.5rem;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.25);
+    margin-top: 3px;
+  }
+  .cd-sep {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 1.3rem;
+    color: rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.2);
+    padding-bottom: 14px;
+    animation: blink 1s step-end infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.15} }
+  .cd-live { display: none; align-items: center; gap: 6px; }
+  .cd-live.on { display: flex; }
+  .cd-live-dot { width: 7px; height: 7px; border-radius: 50%; background: #f85149; animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{box-shadow:0 0 0 0 rgba(248,81,73,0.5)} 50%{box-shadow:0 0 0 5px rgba(248,81,73,0)} }
+  .cd-live-text { font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem; font-weight: 600; color: #f85149; letter-spacing: 1.5px; text-transform: uppercase; }
+
+  /* Calculate button */
+  .calc-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+  .calc-btn {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.82rem;
+    font-weight: 600;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--mx);
+    background: transparent;
+    border: 1px solid rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.4);
+    padding: 14px 48px;
+    cursor: pointer;
+    transition: all 0.4s cubic-bezier(0.19, 1, 0.22, 1);
+    position: relative;
+    overflow: hidden;
+    text-shadow: 0 0 10px rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.2);
+  }
+  .calc-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.08);
+    opacity: 0;
+    transition: opacity 0.4s;
+  }
+  .calc-btn:hover::before { opacity: 1; }
+  .calc-btn:hover {
+    border-color: var(--mx);
+    box-shadow: 0 0 20px rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.15), inset 0 0 20px rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.05);
+    transform: translateY(-1px);
+  }
+  .calc-btn span { position: relative; z-index: 1; }
+  .calc-btn.running { border-color: var(--mx); pointer-events: none; }
+  .calc-btn.running::before { opacity: 0.15; background: var(--mx); }
+
+  .prog-wrap {
+    width: 280px;
+    height: 2px;
+    background: rgba(255,255,255,0.04);
+    margin-top: 12px;
+    overflow: hidden;
+    opacity: 0;
+    transition: opacity 0.3s;
+    border-radius: 1px;
+  }
+  .prog-wrap.on { opacity: 1; }
+  .prog-bar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--mx), var(--mx));
+    transition: width 0.1s linear;
+    box-shadow: 0 0 10px var(--mx);
+  }
+  .log-area {
+    width: 100%;
+    max-width: 480px;
+    height: 64px;
+    position: relative;
+    overflow: hidden;
+    margin-top: 10px;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .log-area.on { opacity: 1; }
+  .log-area::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 24px;
+    background: linear-gradient(180deg, #06080c, transparent);
+    z-index: 2;
+    pointer-events: none;
+  }
+  .log-inner {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.65rem;
+    line-height: 1.7;
+    color: rgba(255,255,255,0.3);
+    text-align: center;
+  }
+  .log-inner .ll {
+    animation: logIn 0.2s forwards;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  @keyframes logIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
+  .ll .ts { color: rgba(255,255,255,0.1); margin-right: 4px; }
+  .ll .ok { color: var(--mx); }
+  .ll .warn { color: rgba(255,255,255,0.6); }
+  .ll .hi { color: var(--mx); }
+
+</style>
+</head>
+<body>
+<div class="page-wrap">
+
+<div class="header">
+  <div class="tag">KenPom + Torvik Blended Model · March Madness 2026</div>
+  <h1>March Madness <span>Bracket Engine</span></h1>
+  <div class="subtitle">blended KenPom + Torvik efficiency ratings · injury adjustments · log5 weighted simulation<br>
+    <span style="color:var(--mx);opacity:0.5;font-size:0.68rem">Rankings via <a href="https://kenpom.com/" target="_blank" rel="noopener" style="color:var(--mx);text-decoration:none">KenPom.com</a> & <a href="https://barttorvik.com/" target="_blank" rel="noopener" style="color:var(--mx);text-decoration:none">BartTorvik.com</a> →</span>
+  </div>
+  <div class="header-actions">
+    <button class="reset-btn" onclick="resetAll()">Reset All Picks</button>
+    <button class="share-btn" id="shareBtn" onclick="openSharePanel()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+      <span>Share Bracket</span>
+    </button>
+  </div>
+</div>
+
+<div class="countdown-bar" id="cdBar">
+  <div class="cd-info"><strong>First Tip-Off</strong><br>(16) UMBC vs (16) Howard · Tue Mar 17 · 6:40 PM ET</div>
+  <div class="cd-digits" id="cdDigits">
+    <div class="cd-block"><div class="cd-val" id="cdD">--</div><div class="cd-lbl">Days</div></div>
+    <div class="cd-sep">:</div>
+    <div class="cd-block"><div class="cd-val" id="cdH">--</div><div class="cd-lbl">Hrs</div></div>
+    <div class="cd-sep">:</div>
+    <div class="cd-block"><div class="cd-val" id="cdM">--</div><div class="cd-lbl">Min</div></div>
+    <div class="cd-sep">:</div>
+    <div class="cd-block"><div class="cd-val" id="cdS">--</div><div class="cd-lbl">Sec</div></div>
+  </div>
+  <div class="cd-live" id="cdLive"><div class="cd-live-dot"></div><div class="cd-live-text">Underway</div></div>
+</div>
+
+<div class="calc-area">
+  <button class="calc-btn" id="calcBtn" onclick="runEngine()"><span>Simulate Bracket</span></button>
+  <div id="simCount" style="font-family:'IBM Plex Mono',monospace;font-size:0.68rem;color:rgba(255,255,255,0.2);margin-top:6px;height:16px"></div>
+  <div class="upset-badge" id="upsetBadge"><span class="ub-num" id="upsetNum">0</span><span class="ub-label">upsets predicted</span></div>
+  <div class="prog-wrap" id="progWrap"><div class="prog-bar" id="progBar"></div></div>
+  <div class="log-area" id="logArea"><div class="log-inner" id="logInner"></div></div>
+</div>
+
+<div id="top-labels" class="bracket-labels-row"></div>
+<div class="bracket-row" id="topRow"></div>
+
+<div class="final-four" id="finalFour"></div>
+
+<div id="bot-labels" class="bracket-labels-row"></div>
+<div class="bracket-row" id="botRow"></div>
+
+<!-- Mobile bracket view -->
+<div class="mobile-bracket" id="mobileBracket"></div>
+
+
+<div class="share-overlay" id="shareOverlay" onclick="closeSharePanel(event)">
+  <div class="share-panel" onclick="event.stopPropagation()">
+    <button class="share-close" onclick="closeSharePanel()">&times;</button>
+    <div class="share-panel-title">Share Your Bracket</div>
+    <div class="share-preview" id="sharePreview"></div>
+    <div class="share-options">
+      <div class="share-option" onclick="copyBracketText()">
+        <div class="share-icon copy"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></div>
+        <div>
+          <div class="share-label">Copy to Clipboard</div>
+          <div class="share-sublabel">Full bracket breakdown</div>
+        </div>
+      </div>
+      <div class="share-option" onclick="shareTwitter()">
+        <div class="share-icon x"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></div>
+        <div>
+          <div class="share-label">Post on X</div>
+          <div class="share-sublabel">Champion + Final Four picks</div>
+        </div>
+      </div>
+      <div class="share-option" onclick="shareLinkedIn()">
+        <div class="share-icon li"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg></div>
+        <div>
+          <div class="share-label">Share on LinkedIn</div>
+          <div class="share-sublabel">Post your bracket picks</div>
+        </div>
+      </div>
+      <div class="share-option" onclick="shareEmail()">
+        <div class="share-icon email"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg></div>
+        <div>
+          <div class="share-label">Send via Email</div>
+          <div class="share-sublabel">Full bracket with methodology</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="share-toast" id="shareToast"></div>
+
+<div id="breakdownSection" class="breakdown" style="display:none">
+
+  <div class="bd-divider"></div>
+
+  <div class="bd-grid">
+    <div class="bd-card">
+      <div class="bd-card-title" style="color:var(--mx)">Injury Adjustments</div>
+      <div class="bd-card-sub">Applied to blended rating after KenPom + Torvik merge</div>
+      <div id="injuryTable"></div>
+    </div>
+
+    <div class="bd-card">
+      <div class="bd-card-title" style="color:var(--mx)">Upset Picks</div>
+      <div class="bd-card-sub">Games where the model favors the lower seed</div>
+      <div id="upsetTable"></div>
+    </div>
+  </div>
+
+  <div class="bd-card bd-card-wide">
+    <div class="bd-card-title" style="color:var(--mx)">Round-by-Round Win Probabilities</div>
+    <div class="bd-card-sub">Model confidence for each predicted winner</div>
+    <div id="probTable"></div>
+  </div>
+
+  <div class="bd-card bd-card-wide">
+    <div class="bd-card-title" style="color:var(--mx)">Methodology</div>
+    <div class="bd-method">
+      <p><strong style="color:var(--mx)">KenPom Efficiency Ratings:</strong> Each team gets an adjusted efficiency margin (AdjEM) representing expected point differential per 100 possessions vs an average D-I opponent on a neutral court. Higher is better.</p>
+      <p><strong style="color:var(--mx)">Torvik T-Rank Ratings:</strong> Bart Torvik's system uses similar tempo-free efficiency metrics but applies recency weighting, downweighting games older than 40 days. This better reflects how teams are playing right now heading into the tournament.</p>
+      <p><strong style="color:var(--mx)">Injury Adjustments:</strong> Teams with significant injuries receive a negative delta applied on top of the blended rating, based on player importance (usage rate, on/off splits, role). UNC losing projected top-5 pick Caleb Wilson gets the largest adjustment at -9.0.</p>
+      <p><strong style="color:var(--mx)">Blended Win Probability:</strong> Each team's base rating is a 50/50 blend of KenPom AdjEM and Torvik AdjEM. Injury deltas are then applied on top of the blended rating. Win probability uses log5: P(A wins) = 1 / (1 + 10^(-diff/12)), where diff = blended + injury-adjusted rating difference. A 10-point gap yields roughly 80% win probability.</p>
+      <p><strong style="color:var(--mx)">Weighted Simulation:</strong> Each game is decided by a weighted coin flip using the blended probability. If a team has a 75% win probability, it wins 75% of the time across simulations. Hit "Simulate Again" for a different bracket. Every run is unique, but favorites still win more often than underdogs.</p>
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top:14px;font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(255,255,255,0.2);text-align:center;padding-bottom:20px">
+  Built by Connor Florczyk · Model: KenPom + Torvik blended AdjEM + injury deltas → log5 weighted simulation (k=12)<br>
+  Rankings via <a href="https://kenpom.com/" target="_blank" rel="noopener" style="color:var(--mx);text-decoration:none;opacity:0.6">KenPom.com</a> & <a href="https://barttorvik.com/" target="_blank" rel="noopener" style="color:var(--mx);text-decoration:none;opacity:0.6">BartTorvik.com</a> · Data as of March 16, 2026 · For entertainment purposes only
+</div>
+
+<div style="font-family:'IBM Plex Mono',monospace;font-size:0.5rem;color:rgba(255,255,255,0.1);text-align:center;padding-bottom:28px;max-width:640px;margin:0 auto;line-height:1.7">
+  This site is not affiliated with, endorsed by, or in any way officially connected to the NCAA, March Madness, KenPom, or BartTorvik. "March Madness" is a registered trademark of the NCAA. All team names, logos, and related marks are the property of their respective owners. Statistical data is used for informational and entertainment purposes only. This tool does not constitute gambling advice. Simulated results are probabilistic and should not be relied upon for wagering decisions.
+</div>
+
+</div>
+
+<script>
+// ── Team data ──
+const REGIONS = {
+  EAST: [
+    [1,'Duke',16,'Siena'],
+    [8,'Ohio State',9,'TCU'],
+    [5,"St. John's",12,'N. Iowa'],
+    [4,'Kansas',13,'CA Baptist'],
+    [6,'Louisville',11,'S. Florida'],
+    [3,'Michigan St',14,'N Dakota St'],
+    [7,'UCLA',10,'UCF'],
+    [2,'UConn',15,'Furman']
+  ],
+  WEST: [
+    [1,'Arizona',16,'Long Island'],
+    [8,'Villanova',9,'Utah State'],
+    [5,'Wisconsin',12,'High Point'],
+    [4,'Arkansas',13,"Hawai'i"],
+    [6,'BYU',11,'TEX/NCSU'],
+    [3,'Gonzaga',14,'Kennesaw St'],
+    [7,'Miami',10,'Missouri'],
+    [2,'Purdue',15,'Queens']
+  ],
+  SOUTH: [
+    [1,'Florida',16,'PV/LEH'],
+    [8,'Clemson',9,'Iowa'],
+    [5,'Vanderbilt',12,'McNeese'],
+    [4,'Nebraska',13,'Troy'],
+    [6,'N. Carolina',11,'VCU'],
+    [3,'Illinois',14,'Penn'],
+    [7,"Saint Mary's",10,'Texas A&M'],
+    [2,'Houston',15,'Idaho']
+  ],
+  MIDWEST: [
+    [1,'Michigan',16,'UMBC/HOW'],
+    [8,'Georgia',9,'Saint Louis'],
+    [5,'Texas Tech',12,'Akron'],
+    [4,'Alabama',13,'Hofstra'],
+    [6,'Tennessee',11,'M-OH/SMU'],
+    [3,'Virginia',14,'Wright St'],
+    [7,'Kentucky',10,'Santa Clara'],
+    [2,'Iowa State',15,'Tennessee St']
+  ]
+};
+
+const SIDE_ROUNDS = 4; // 8→4→2→1
+
+// ── State ──
+let regions = {};
+let ff = { semi1: {t1:null,t2:null,s1:null,s2:null,w:null}, semi2: {t1:null,t2:null,s1:null,s2:null,w:null}, champ: {t1:null,t2:null,s1:null,s2:null,w:null} };
+
+function initRegion(name) {
+  const teams = REGIONS[name];
+  const rounds = [];
+  const r0 = teams.map(t => ({ s1:t[0], t1:t[1], s2:t[2], t2:t[3], w:null }));
+  rounds.push(r0);
+  let n = 4;
+  for (let r = 1; r < SIDE_ROUNDS; r++) {
+    const round = [];
+    for (let i = 0; i < n; i++) round.push({ s1:null, t1:null, s2:null, t2:null, w:null });
+    round.push();
+    rounds.push(round);
+    n /= 2;
+  }
+  return rounds;
+}
+
+function initAll() {
+  for (const name of Object.keys(REGIONS)) {
+    regions[name] = initRegion(name);
+  }
+  ff = {
+    semi1: {t1:null,t2:null,s1:null,s2:null,w:null},
+    semi2: {t1:null,t2:null,s1:null,s2:null,w:null},
+    champ: {t1:null,t2:null,s1:null,s2:null,w:null}
+  };
+}
+
+function pickRegion(rName, ri, mi, tn) {
+  const rounds = regions[rName];
+  const m = rounds[ri][mi];
+  const name = tn === 1 ? m.t1 : m.t2;
+  const seed = tn === 1 ? m.s1 : m.s2;
+  if (!name) return;
+  m.w = name;
+
+  if (ri < SIDE_ROUNDS - 1) {
+    const ni = Math.floor(mi / 2);
+    const slot = mi % 2 === 0 ? 1 : 2;
+    const next = rounds[ri + 1][ni];
+    next['t' + slot] = name;
+    next['s' + slot] = seed;
+    cascadeRegion(rName, ri + 1, ni);
+  } else {
+    // Feed to Final Four
+    feedToFF(rName, name, seed);
+  }
+  renderAll();
+}
+
+function cascadeRegion(rName, ri, mi) {
+  const m = regions[rName][ri][mi];
+  if (m.w) {
+    m.w = null;
+    if (ri < SIDE_ROUNDS - 1) {
+      const ni = Math.floor(mi / 2);
+      const slot = mi % 2 === 0 ? 1 : 2;
+      const next = regions[rName][ri + 1][ni];
+      next['t' + slot] = null;
+      next['s' + slot] = null;
+      cascadeRegion(rName, ri + 1, ni);
+    } else {
+      feedToFF(rName, null, null);
+    }
+  }
+}
+
+function feedToFF(rName, name, seed) {
+  if (rName === 'EAST') { ff.semi1.t1 = name; ff.semi1.s1 = seed; clearSemi('semi1'); }
+  if (rName === 'WEST') { ff.semi1.t2 = name; ff.semi1.s2 = seed; clearSemi('semi1'); }
+  if (rName === 'SOUTH') { ff.semi2.t1 = name; ff.semi2.s1 = seed; clearSemi('semi2'); }
+  if (rName === 'MIDWEST') { ff.semi2.t2 = name; ff.semi2.s2 = seed; clearSemi('semi2'); }
+}
+
+function clearSemi(sKey) {
+  if (ff[sKey].w) {
+    ff[sKey].w = null;
+    const cSlot = sKey === 'semi1' ? 1 : 2;
+    ff.champ['t' + cSlot] = null;
+    ff.champ['s' + cSlot] = null;
+    if (ff.champ.w) ff.champ.w = null;
+  }
+}
+
+function pickSemi(sKey, tn) {
+  const s = ff[sKey];
+  const name = tn === 1 ? s.t1 : s.t2;
+  const seed = tn === 1 ? s.s1 : s.s2;
+  if (!name) return;
+  s.w = name;
+  const cSlot = sKey === 'semi1' ? 1 : 2;
+  ff.champ['t' + cSlot] = name;
+  ff.champ['s' + cSlot] = seed;
+  if (ff.champ.w) ff.champ.w = null;
+  renderAll();
+}
+
+function pickChamp(tn) {
+  const name = tn === 1 ? ff.champ.t1 : ff.champ.t2;
+  if (!name) return;
+  ff.champ.w = name;
+  renderAll();
+}
+
+// ── DOM builders ──
+
+function makeTeam(seed, name, isW, isL, cb) {
+  const d = document.createElement('div');
+  d.className = 'team' + (isW ? ' winner' : '') + (isL ? ' loser' : '') + (!name ? ' empty' : '');
+  const seedEl = document.createElement('span');
+  seedEl.className = 'seed';
+  seedEl.textContent = seed || '';
+  d.appendChild(seedEl);
+  const nameEl = document.createElement('span');
+  nameEl.className = 'name';
+  nameEl.textContent = name || 'TBD';
+  d.appendChild(nameEl);
+  if (name && cb) d.onclick = cb;
+  return d;
+}
+
+function buildRound(rName, r) {
+  const rc = document.createElement('div');
+  rc.className = 'round';
+  regions[rName][r].forEach((m, mi) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'match-wrap';
+    const pair = document.createElement('div');
+    pair.className = 'team-pair';
+    pair.appendChild(makeTeam(m.s1, m.t1, m.w === m.t1, m.w && m.w !== m.t1 && m.t1, () => pickRegion(rName, r, mi, 1)));
+    pair.appendChild(makeTeam(m.s2, m.t2, m.w === m.t2, m.w && m.w !== m.t2 && m.t2, () => pickRegion(rName, r, mi, 2)));
+    // Upset pip
+    if (m.w && m.t1 && m.t2) {
+      const wSeed = m.w === m.t1 ? m.s1 : m.s2;
+      const lSeed = m.w === m.t1 ? m.s2 : m.s1;
+      if (wSeed > lSeed) {
+        const pip = document.createElement('div');
+        pip.className = 'upset-pip'; const anims=['glitch-flicker','glitch-flicker-2','glitch-flicker-3']; pip.style.animationName=anims[Math.floor(Math.random()*3)]; pip.style.animationDuration=(3+Math.random()*5).toFixed(1)+'s'; pip.style.animationDelay=(Math.random()*6).toFixed(1)+'s';
+        pip.textContent = 'UPSET';
+        pair.appendChild(pip);
+      }
+    }
+    wrap.appendChild(pair);
+    rc.appendChild(wrap);
+  });
+  return rc;
+}
+
+function buildCL(n) {
+  const c = document.createElement('div'); c.className = 'conn-col';
+  for (let i = 0; i < n; i++) { const p = document.createElement('div'); p.className = 'conn-pair'; p.innerHTML = '<div class="h-top"></div><div class="h-bot"></div>'; c.appendChild(p); }
+  return c;
+}
+
+function buildCR(n) {
+  const c = document.createElement('div'); c.className = 'conn-col-r';
+  for (let i = 0; i < n; i++) { const p = document.createElement('div'); p.className = 'conn-pair-r'; p.innerHTML = '<div class="h-top"></div><div class="h-bot"></div>'; c.appendChild(p); }
+  return c;
+}
+
+function buildCLgf(n) {
+  const c = document.createElement('div'); c.className = 'conn-col-gf';
+  for (let i = 0; i < n; i++) { const p = document.createElement('div'); p.className = 'conn-pair-gf'; p.innerHTML = '<div class="h-top"></div><div class="h-bot"></div>'; c.appendChild(p); }
+  return c;
+}
+
+function buildCRgf(n) {
+  const c = document.createElement('div'); c.className = 'conn-col-gf-r';
+  for (let i = 0; i < n; i++) { const p = document.createElement('div'); p.className = 'conn-pair-gf-r'; p.innerHTML = '<div class="h-top"></div><div class="h-bot"></div>'; c.appendChild(p); }
+  return c;
+}
+
+function buildFeed() { const f = document.createElement('div'); f.className = 'feed'; f.innerHTML = '<div class="fl"></div>'; return f; }
+function buildFeedGF() { const f = document.createElement('div'); f.className = 'feed-gf'; f.innerHTML = '<div class="fl"></div>'; return f; }
+
+function renderHalf(containerId, leftRegion, rightRegion) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = '';
+
+  // Left region: rounds left to right
+  for (let r = 0; r < SIDE_ROUNDS; r++) {
+    if (r > 0) el.appendChild(buildCL(regions[leftRegion][r].length));
+    el.appendChild(buildRound(leftRegion, r));
+  }
+
+  // Gap
+  const gap = document.createElement('div');
+  gap.className = 'bracket-gap';
+  el.appendChild(gap);
+
+  // Right region: rounds right to left (mirrored)
+  for (let r = SIDE_ROUNDS - 1; r >= 0; r--) {
+    el.appendChild(buildRound(rightRegion, r));
+    if (r > 0) el.appendChild(buildCR(regions[rightRegion][r].length));
+  }
+}
+
+const REGION_COLORS = { EAST: '#00ff41', WEST: '#f85149', SOUTH: '#fff', MIDWEST: '#00cc88' };
+
+function renderLabels(containerId, leftName, rightName) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = '';
+  const l = document.createElement('div');
+  l.className = 'region-label region-label-left';
+  l.textContent = leftName;
+  l.style.color = REGION_COLORS[leftName] || '#555';
+  const r = document.createElement('div');
+  r.className = 'region-label region-label-right';
+  r.textContent = rightName;
+  r.style.color = REGION_COLORS[rightName] || '#555';
+  el.appendChild(l);
+  el.appendChild(r);
+}
+
+function buildSemiMatch(sKey) {
+  const s = ff[sKey];
+  // Use same structure as regular bracket: .round > .match-wrap > .team-pair
+  const round = document.createElement('div');
+  round.className = 'round ff-round';
+  const wrap = document.createElement('div');
+  wrap.className = 'match-wrap';
+  const pair = document.createElement('div');
+  pair.className = 'team-pair ff-pair';
+  pair.appendChild(makeTeam(s.s1, s.t1, s.w === s.t1, s.w && s.w !== s.t1 && s.t1, () => pickSemi(sKey, 1)));
+  pair.appendChild(makeTeam(s.s2, s.t2, s.w === s.t2, s.w && s.w !== s.t2 && s.t2, () => pickSemi(sKey, 2)));
+  if (s.w && s.t1 && s.t2) {
+    const wSeed = s.w === s.t1 ? s.s1 : s.s2;
+    const lSeed = s.w === s.t1 ? s.s2 : s.s1;
+    if (wSeed > lSeed) {
+      const pip = document.createElement('div');
+      pip.className = 'upset-pip'; const anims=['glitch-flicker','glitch-flicker-2','glitch-flicker-3']; pip.style.animationName=anims[Math.floor(Math.random()*3)]; pip.style.animationDuration=(3+Math.random()*5).toFixed(1)+'s'; pip.style.animationDelay=(Math.random()*6).toFixed(1)+'s';
+      pip.textContent = 'UPSET';
+      pair.appendChild(pip);
+    }
+  }
+  wrap.appendChild(pair);
+  round.appendChild(wrap);
+  return round;
+}
+
+function renderFinalFour() {
+  const el = document.getElementById('finalFour');
+  el.innerHTML = '';
+
+  // Label row
+  const labelRow = document.createElement('div');
+  labelRow.className = 'ff-label-row';
+  const l1 = document.createElement('div');
+  l1.className = 'ff-label';
+  l1.textContent = 'Final Four';
+  const l2 = document.createElement('div');
+  l2.className = 'ff-label';
+  l2.textContent = 'Championship';
+  const l3 = document.createElement('div');
+  l3.className = 'ff-label';
+  l3.textContent = 'Final Four';
+  labelRow.appendChild(l1);
+  labelRow.appendChild(l2);
+  labelRow.appendChild(l3);
+  el.appendChild(labelRow);
+
+  // Bracket row using same structure as regular bracket
+  const row = document.createElement('div');
+  row.className = 'ff-bracket-row';
+
+  // Semi 1
+  row.appendChild(buildSemiMatch('semi1'));
+
+  // Blue line to championship
+  const feedL = buildFeedGF(); feedL.classList.add('feed-blue');
+  row.appendChild(feedL);
+
+  // Championship
+  const champRound = document.createElement('div');
+  champRound.className = 'round ff-round';
+  const champWrap = document.createElement('div');
+  champWrap.className = 'match-wrap';
+  const cPair = document.createElement('div');
+  cPair.className = 'team-pair ff-pair champ-pair';
+  const c = ff.champ;
+  const ct1 = makeTeam(c.s1, c.t1, c.w === c.t1, c.w && c.w !== c.t1 && c.t1, () => pickChamp(1));
+  ct1.classList.add('champ-t1');
+  cPair.appendChild(ct1);
+  const ct2 = makeTeam(c.s2, c.t2, c.w === c.t2, c.w && c.w !== c.t2 && c.t2, () => pickChamp(2));
+  ct2.classList.add('champ-t2');
+  cPair.appendChild(ct2);
+  if (c.w && c.t1 && c.t2) {
+    const wS = c.w === c.t1 ? c.s1 : c.s2;
+    const lS = c.w === c.t1 ? c.s2 : c.s1;
+    if (wS > lS) {
+      const pip = document.createElement('div');
+      pip.className = 'upset-pip'; const anims=['glitch-flicker','glitch-flicker-2','glitch-flicker-3']; pip.style.animationName=anims[Math.floor(Math.random()*3)]; pip.style.animationDuration=(3+Math.random()*5).toFixed(1)+'s'; pip.style.animationDelay=(Math.random()*6).toFixed(1)+'s';
+      pip.textContent = 'UPSET';
+      cPair.appendChild(pip);
+    }
+  }
+  champWrap.appendChild(cPair);
+  champRound.appendChild(champWrap);
+  row.appendChild(champRound);
+
+  // Red line to semi 2
+  const feedR = buildFeedGF(); feedR.classList.add('feed-red');
+  row.appendChild(feedR);
+
+  // Semi 2
+  row.appendChild(buildSemiMatch('semi2'));
+
+  el.appendChild(row);
+
+  // Champion display below
+  const champDisplay = document.createElement('div');
+  champDisplay.className = 'grand-champ-wrap';
+  const gcLabel = document.createElement('div');
+  gcLabel.className = 'grand-champ-label';
+  gcLabel.textContent = 'Champion';
+  // Color the label based on which slot won
+  if (c.w && c.w === c.t1) gcLabel.style.color = '#00eeff';
+  if (c.w && c.w === c.t2) gcLabel.style.color = '#ff2255';
+  champDisplay.appendChild(gcLabel);
+  const gcBox = document.createElement('div');
+  const champColor = c.w ? (c.w === c.t1 ? 'champ-blue' : 'champ-red') : '';
+  gcBox.className = 'grand-champ-box ' + (c.w ? 'has ' + champColor : 'none');
+  gcBox.textContent = c.w || 'TBD';
+  champDisplay.appendChild(gcBox);
+  el.appendChild(champDisplay);
+}
+
+function renderAll() {
+  renderLabels('top-labels', 'EAST', 'WEST');
+  renderHalf('topRow', 'EAST', 'WEST');
+  renderFinalFour();
+  renderLabels('bot-labels', 'SOUTH', 'MIDWEST');
+  renderHalf('botRow', 'SOUTH', 'MIDWEST');
+  renderMobile();
+}
+
+function renderMobile() {
+  const el = document.getElementById('mobileBracket');
+  if (!el) return;
+
+  const roundNames = ['Round of 64', 'Round of 32', 'Sweet 16', 'Elite 8'];
+  const regionOrder = ['EAST', 'WEST', 'SOUTH', 'MIDWEST'];
+  let html = '';
+
+  // Region rounds
+  for (let ri = 0; ri < 4; ri++) {
+    html += `<div class="mb-round"><div class="mb-round-header">${roundNames[ri]}</div>`;
+    for (const rName of regionOrder) {
+      const round = regions[rName][ri];
+      const hasGames = round.some(m => m.t1 || m.t2);
+      if (!hasGames && ri > 0) continue;
+
+      const rColor = REGION_COLORS[rName] || '#555';
+      html += `<div class="mb-region-label" style="color:${rColor}">${rName}</div>`;
+
+      round.forEach((m, mi) => {
+        const probText = (m.t1 && m.t2 && MODEL[m.t1] && MODEL[m.t2]) ?
+          pct0(m.t1, m.t2) + '%' : '';
+
+        const t1w = m.w === m.t1;
+        const t2w = m.w === m.t2;
+        const t1l = m.w && !t1w && m.t1;
+        const t2l = m.w && !t2w && m.t2;
+
+        html += `<div class="mb-game">`;
+        if (m.w && m.t1 && m.t2) {
+          const wS = m.w === m.t1 ? m.s1 : m.s2;
+          const lS = m.w === m.t1 ? m.s2 : m.s1;
+          if (wS > lS) html += `<div class="mb-upset-pip">UPSET</div>`;
+        }
+        html += mbTeamRow(m.s1, m.t1, t1w, t1l, rName, ri, mi, 1, t1w ? probText : '');
+        html += mbTeamRow(m.s2, m.t2, t2w, t2l, rName, ri, mi, 2, t2w ? probText : '');
+        html += `</div>`;
+      });
+    }
+    html += `</div>`;
+  }
+
+  // Final Four
+  html += `<div class="mb-ff-section">`;
+  html += `<div class="mb-round"><div class="mb-round-header" style="color:var(--mx)">Final Four</div>`;
+
+  ['semi1', 'semi2'].forEach((sk, si) => {
+    const s = ff[sk];
+    const label = si === 0 ? 'EAST vs WEST' : 'SOUTH vs MIDWEST';
+    html += `<div class="mb-region-label" style="color:var(--mx)">${label}</div>`;
+
+    const probText = (s.t1 && s.t2 && MODEL[s.t1] && MODEL[s.t2]) ?
+      pct0(s.t1, s.t2) + '%' : '';
+
+    const t1w = s.w === s.t1;
+    const t2w = s.w === s.t2;
+
+    html += `<div class="mb-game">`;
+    if (s.w && s.t1 && s.t2) {
+      const wS = s.w === s.t1 ? s.s1 : s.s2;
+      const lS = s.w === s.t1 ? s.s2 : s.s1;
+      if (wS > lS) html += `<div class="mb-upset-pip">UPSET</div>`;
+    }
+    html += `<div class="mb-team${t1w ? ' mb-winner' : ''}${s.w && !t1w && s.t1 ? ' mb-loser' : ''}${!s.t1 ? ' mb-empty' : ''}" onclick="pickSemi('${sk}',1)">`;
+    html += `<span class="mb-seed">${s.s1 || ''}</span><span class="mb-name">${s.t1 || 'TBD'}</span>`;
+    html += t1w ? `<span class="mb-prob">${probText}</span>` : '';
+    html += `</div>`;
+    html += `<div class="mb-team${t2w ? ' mb-winner' : ''}${s.w && !t2w && s.t2 ? ' mb-loser' : ''}${!s.t2 ? ' mb-empty' : ''}" onclick="pickSemi('${sk}',2)">`;
+    html += `<span class="mb-seed">${s.s2 || ''}</span><span class="mb-name">${s.t2 || 'TBD'}</span>`;
+    html += t2w ? `<span class="mb-prob">${probText}</span>` : '';
+    html += `</div></div>`;
+  });
+
+  // Championship
+  html += `<div class="mb-region-label" style="color:var(--mx)">CHAMPIONSHIP</div>`;
+  const c = ff.champ;
+  const cProb = (c.t1 && c.t2 && MODEL[c.t1] && MODEL[c.t2]) ?
+    pct0(c.t1, c.t2) + '%' : '';
+  const ct1w = c.w === c.t1;
+  const ct2w = c.w === c.t2;
+
+  html += `<div class="mb-game">`;
+  if (c.w && c.t1 && c.t2) {
+    const wS = c.w === c.t1 ? c.s1 : c.s2;
+    const lS = c.w === c.t1 ? c.s2 : c.s1;
+    if (wS > lS) html += `<div class="mb-upset-pip">UPSET</div>`;
+  }
+  html += `<div class="mb-team${ct1w ? ' mb-winner' : ''}${c.w && !ct1w && c.t1 ? ' mb-loser' : ''}${!c.t1 ? ' mb-empty' : ''}" onclick="pickChamp(1)">`;
+  html += `<span class="mb-seed">${c.s1 || ''}</span><span class="mb-name">${c.t1 || 'TBD'}</span>`;
+  html += ct1w ? `<span class="mb-prob">${cProb}</span>` : '';
+  html += `</div>`;
+  html += `<div class="mb-team${ct2w ? ' mb-winner' : ''}${c.w && !ct2w && c.t2 ? ' mb-loser' : ''}${!c.t2 ? ' mb-empty' : ''}" onclick="pickChamp(2)">`;
+  html += `<span class="mb-seed">${c.s2 || ''}</span><span class="mb-name">${c.t2 || 'TBD'}</span>`;
+  html += ct2w ? `<span class="mb-prob">${cProb}</span>` : '';
+  html += `</div></div>`;
+
+  // Champion display
+  html += `<div class="mb-champ-box ${c.w ? 'has' : 'none'}">`;
+  if (c.w) {
+    html += `<div class="mb-champ-trophy">★</div>`;
+    html += `<div class="mb-champ-label">Champion</div>`;
+    html += `<div class="mb-champ-name">${c.w}</div>`;
+  } else {
+    html += `<div class="mb-champ-label">Champion</div>`;
+    html += `<div class="mb-champ-name tbd">TBD</div>`;
+  }
+  html += `</div>`;
+
+  html += `</div></div>`;
+
+  el.innerHTML = html;
+}
+
+function mbTeamRow(seed, name, isW, isL, rName, ri, mi, tn, probText) {
+  const cls = `mb-team${isW ? ' mb-winner' : ''}${isL ? ' mb-loser' : ''}${!name ? ' mb-empty' : ''}`;
+  return `<div class="${cls}" onclick="pickRegion('${rName}',${ri},${mi},${tn})">` +
+    `<span class="mb-seed">${seed || ''}</span>` +
+    `<span class="mb-name">${name || 'TBD'}</span>` +
+    (probText ? `<span class="mb-prob">${probText}</span>` : '') +
+    `</div>`;
+}
+
+function resetAll() {
+  initAll();
+  renderAll();
+  const bd = document.getElementById('breakdownSection');
+  if (bd) bd.style.display = 'none';
+  const sc = document.getElementById('simCount');
+  if (sc) sc.textContent = '';
+  const ub = document.getElementById('upsetBadge');
+  if (ub) ub.classList.remove('on');
+  const sb = document.getElementById('shareBtn');
+  if (sb) sb.classList.remove('on');
+}
+
+// init moved to end of script after all definitions
+
+// ── COUNTDOWN ──
+(function(){
+  const TIP = new Date('2026-03-17T22:40:00Z');
+  function pad(n){return String(n).padStart(2,'0')}
+  function tick(){
+    const d = TIP - new Date();
+    if(d<=0){
+      document.getElementById('cdBar').style.display='none';
+      return;
+    }
+    document.getElementById('cdD').textContent=pad(Math.floor(d/864e5));
+    document.getElementById('cdH').textContent=pad(Math.floor(d%864e5/36e5));
+    document.getElementById('cdM').textContent=pad(Math.floor(d%36e5/6e4));
+    const s=Math.floor(d%6e4/1e3);
+    const el=document.getElementById('cdS');
+    el.textContent=pad(s);
+    el.style.color=s%2?'#00ff41':'#fff';
+  }
+  tick(); setInterval(tick,1000);
+})();
+
+// ── KENPOM MODEL ──
+const MODEL = {
+  // EAST — base AdjEM (injury deltas applied after blending with Torvik)
+  'Duke':{em:33.5,ii:-3.5},'Siena':{em:-2,ii:0},'Ohio State':{em:17.5,ii:-0.5},'TCU':{em:16,ii:0},
+  "St. John's":{em:22.5,ii:0},'N. Iowa':{em:14,ii:0},'Kansas':{em:23.5,ii:0},'CA Baptist':{em:4.5,ii:0},
+  'Louisville':{em:21,ii:-4},'S. Florida':{em:13,ii:0},'Michigan St':{em:27,ii:0},'N Dakota St':{em:1,ii:0},
+  'UCLA':{em:25.5,ii:-6},'UCF':{em:18,ii:0},'UConn':{em:27.5,ii:0},'Furman':{em:8,ii:0},
+  // WEST
+  'Arizona':{em:32.5,ii:0},'Long Island':{em:-8,ii:0},'Villanova':{em:18.5,ii:0},'Utah State':{em:18.8,ii:0},
+  'Wisconsin':{em:21.5,ii:0},'High Point':{em:11,ii:0},'Arkansas':{em:24.5,ii:0},"Hawai'i":{em:6,ii:0},
+  'BYU':{em:26,ii:-8},'TEX/NCSU':{em:17,ii:0},'Gonzaga':{em:25,ii:-2},'Kennesaw St':{em:-0.5,ii:0},
+  'Miami':{em:19,ii:0},'Missouri':{em:15.5,ii:0},'Purdue':{em:26.5,ii:0},'Queens':{em:-1.5,ii:0},
+  // SOUTH
+  'Florida':{em:29.5,ii:0},'PV/LEH':{em:-10,ii:0},'Clemson':{em:15.5,ii:-2.5},'Iowa':{em:18,ii:0},
+  'Vanderbilt':{em:25,ii:0},'McNeese':{em:9,ii:0},'Nebraska':{em:24.5,ii:0},'Troy':{em:5.5,ii:0},
+  'N. Carolina':{em:23,ii:-9},'VCU':{em:15.5,ii:0},'Illinois':{em:28,ii:0},'Penn':{em:8.5,ii:0},
+  "Saint Mary's":{em:22.5,ii:0},'Texas A&M':{em:16,ii:0},'Houston':{em:29,ii:0},'Idaho':{em:2.5,ii:0},
+  // MIDWEST
+  'Michigan':{em:31.5,ii:-3},'UMBC/HOW':{em:3.5,ii:0},'Georgia':{em:18,ii:0},'Saint Louis':{em:15.5,ii:0},
+  'Texas Tech':{em:22,ii:-1.5},'Akron':{em:10.5,ii:0},'Alabama':{em:24,ii:-3},'Hofstra':{em:5.5,ii:0},
+  'Tennessee':{em:24.5,ii:0},'M-OH/SMU':{em:13.5,ii:0},'Virginia':{em:24.5,ii:0},'Wright St':{em:7,ii:0},
+  'Kentucky':{em:20,ii:-2},'Santa Clara':{em:20.5,ii:0},'Iowa State':{em:28,ii:0},'Tennessee St':{em:-6,ii:0}
+};
+
+// Torvik T-Rank: AdjOE - AdjDE (recency-weighted efficiency margin)
+const TORVIK = {
+  // EAST
+  'Duke':37.4,'Siena':-1.7,'Ohio State':23.6,'TCU':15.3,
+  "St. John's":25.7,'N. Iowa':11.1,'Kansas':23.4,'CA Baptist':7.2,
+  'Louisville':25.8,'S. Florida':15.4,'Michigan St':26.7,'N Dakota St':5.4,
+  'UCLA':22.7,'UCF':14.3,'UConn':28.1,'Furman':-2.1,
+  // WEST
+  'Arizona':35.5,'Long Island':-6.2,'Villanova':19.1,'Utah State':20.9,
+  'Wisconsin':25.6,'High Point':8.2,'Arkansas':26.2,"Hawai'i":5.1,
+  'BYU':20.4,'TEX/NCSU':18.5,'Gonzaga':26.3,'Kennesaw St':1.3,
+  'Miami':19.6,'Missouri':16.9,'Purdue':33.0,'Queens':-2.4,
+  // SOUTH
+  'Florida':33.8,'PV/LEH':-10.0,'Clemson':19.6,'Iowa':21.9,
+  'Vanderbilt':28.2,'McNeese':11.0,'Nebraska':23.7,'Troy':1.7,
+  'N. Carolina':21.4,'VCU':16.2,'Illinois':33.7,'Penn':1.2,
+  "Saint Mary's":21.8,'Texas A&M':18.5,'Houston':33.0,'Idaho':2.6,
+  // MIDWEST
+  'Michigan':36.6,'UMBC/HOW':-2.0,'Georgia':19.5,'Saint Louis':17.3,
+  'Texas Tech':27.5,'Akron':11.8,'Alabama':26.7,'Hofstra':8.3,
+  'Tennessee':26.0,'M-OH/SMU':13.5,'Virginia':26.5,'Wright St':3.4,
+  'Kentucky':19.9,'Santa Clara':21.3,'Iowa State':31.2,'Tennessee St':-4.1
+};
+
+function wp(a,b){
+  // Blend KenPom + Torvik, then apply injury deltas
+  const kpA = MODEL[a] ? MODEL[a].em : 0;
+  const kpB = MODEL[b] ? MODEL[b].em : 0;
+  const tvA = TORVIK[a] || 0;
+  const tvB = TORVIK[b] || 0;
+  const iiA = MODEL[a] ? MODEL[a].ii : 0;
+  const iiB = MODEL[b] ? MODEL[b].ii : 0;
+  const diff = (((kpA + tvA) / 2) + iiA) - (((kpB + tvB) / 2) + iiB);
+  return 1/(1+Math.pow(10,-diff/12));
+}
+
+// Cap display at 99% — never show 100%
+function pct0(a,b){ const v=Math.max(wp(a,b),1-wp(a,b))*100; return Math.min(v,99).toFixed(0); }
+function pct1(a,b){ const v=Math.max(wp(a,b),1-wp(a,b))*100; return Math.min(v,99.9).toFixed(1); }
+function pctRaw(prob){ const v=Math.max(prob,1-prob)*100; return Math.min(v,99.9).toFixed(1); }
+
+function modelPick(t1,t2){
+  if(!t1||!t2)return 1;
+  const p = wp(t1,t2);
+  // Weighted coin flip: team 1 wins with probability p
+  return Math.random() < p ? 1 : 2;
+}
+
+// ── BREAKDOWN RENDERER ──
+const INJURY_DATA = [
+  { team: 'N. Carolina', delta: -9.0, detail: 'Caleb Wilson OUT (thumb, season-ending). 0-2 without him.' },
+  { team: 'BYU', delta: -8.0, detail: 'Richie Saunders OUT (torn ACL). Team 4-9 without him.' },
+  { team: 'UCLA', delta: -6.0, detail: 'Bilodeau questionable (knee); Dent uncertain (calf).' },
+  { team: 'Louisville', delta: -4.0, detail: 'Mikel Brown day-to-day (back). Out since Feb 28.' },
+  { team: 'Duke', delta: -3.5, detail: 'Caleb Foster OUT (foot surgery); Ngongba questionable (foot).' },
+  { team: 'Michigan', delta: -3.0, detail: 'L.J. Cason OUT (torn ACL).' },
+  { team: 'Alabama', delta: -3.0, detail: 'Holloway arrested. Status unclear for tournament.' },
+  { team: 'Clemson', delta: -2.5, detail: 'Carter Welling OUT (torn ACL in ACC tourney).' },
+  { team: 'Gonzaga', delta: -2.0, detail: 'Braden Huff OUT (knee). Unlikely first 2 games.' },
+  { team: 'Kentucky', delta: -2.0, detail: 'Quaintance unlikely (knee); Knox OUT (meniscus).' },
+  { team: 'Texas Tech', delta: -1.5, detail: 'Watts questionable (foot).' },
+  { team: 'Ohio State', delta: -0.5, detail: 'Chatman limited minutes.' },
+];
+
+function renderBreakdown() {
+  // Injuries
+  const injEl = document.getElementById('injuryTable');
+  injEl.innerHTML = INJURY_DATA.map(i =>
+    `<div class="inj-row">
+      <span class="inj-team">${i.team}</span>
+      <span class="inj-delta">${i.delta} pts</span>
+      <span class="inj-detail">${i.detail}</span>
+    </div>`
+  ).join('');
+
+  // Upsets: scan all rounds for lower-seed winners
+  const upsets = [];
+  const roundLabels = ['R64','R32','S16','E8'];
+  for (const rName of ['EAST','WEST','SOUTH','MIDWEST']) {
+    regions[rName].forEach((round, ri) => {
+      round.forEach(m => {
+        if (m.w && m.t1 && m.t2) {
+          const winSeed = m.w === m.t1 ? m.s1 : m.s2;
+          const loseSeed = m.w === m.t1 ? m.s2 : m.s1;
+          const loser = m.w === m.t1 ? m.t2 : m.t1;
+          if (winSeed > loseSeed) {
+            const prob = wp(m.w, loser);
+            const pct = pctRaw(prob);
+            upsets.push({ round: roundLabels[ri], region: rName, winner: m.w, winSeed, loser, loseSeed, pct });
+          }
+        }
+      });
+    });
+  }
+  // Check FF
+  ['semi1','semi2'].forEach(sk => {
+    const s = ff[sk];
+    if (s.w && s.t1 && s.t2) {
+      const winSeed = s.w === s.t1 ? s.s1 : s.s2;
+      const loseSeed = s.w === s.t1 ? s.s2 : s.s1;
+      const loser = s.w === s.t1 ? s.t2 : s.t1;
+      if (winSeed > loseSeed) {
+        const prob = wp(s.w, loser);
+        upsets.push({ round: 'FF', region: '', winner: s.w, winSeed, loser, loseSeed, pct: pctRaw(prob) });
+      }
+    }
+  });
+
+  const upEl = document.getElementById('upsetTable');
+  if (upsets.length === 0) {
+    upEl.innerHTML = '<div style="font-size:0.6rem;color:rgba(255,255,255,0.25);padding:8px 0">No upsets predicted (chalk bracket)</div>';
+  } else {
+    upEl.innerHTML = upsets.map(u =>
+      `<div class="upset-row">
+        <span class="upset-round">${u.round}</span>
+        <span class="upset-winner">(${u.winSeed}) ${u.winner}</span>
+        <span class="upset-over">over</span>
+        <span class="upset-loser">(${u.loseSeed}) ${u.loser}</span>
+        <span class="upset-prob">${u.pct}%</span>
+      </div>`
+    ).join('');
+  }
+
+  // Probabilities by round
+  const probEl = document.getElementById('probTable');
+  let probHTML = '';
+
+  for (let ri = 0; ri < 4; ri++) {
+    probHTML += `<div class="prob-round-label">${roundLabels[ri]}</div>`;
+    for (const rName of ['EAST','WEST','SOUTH','MIDWEST']) {
+      const round = regions[rName][ri];
+      round.forEach(m => {
+        if (m.w && m.t1 && m.t2) {
+          const prob = wp(m.w, m.w === m.t1 ? m.t2 : m.t1);
+          const pct = pctRaw(prob);
+          const loser = m.w === m.t1 ? m.t2 : m.t1;
+          const rColor = REGION_COLORS[rName] || '#555';
+          const barColor = pct >= 80 ? '#00ff41' : pct >= 65 ? '#00ff41' : pct >= 55 ? 'rgba(255,255,255,0.6)' : '#f85149';
+          probHTML += `<div class="prob-row">
+            <span class="prob-region" style="color:${rColor}">${rName}</span>
+            <span class="prob-matchup"><strong>${m.w}</strong> vs ${loser}</span>
+            <span class="prob-pct" style="color:${barColor}">${pct}%</span>
+            <span class="prob-bar-wrap"><span class="prob-bar-fill" style="width:${pct}%;background:${barColor}"></span></span>
+          </div>`;
+        }
+      });
+    }
+  }
+
+  // Final Four
+  probHTML += `<div class="prob-round-label">Final Four</div>`;
+  ['semi1','semi2'].forEach(sk => {
+    const s = ff[sk];
+    if (s.w && s.t1 && s.t2) {
+      const prob = wp(s.w, s.w === s.t1 ? s.t2 : s.t1);
+      const pct = pctRaw(prob);
+      const loser = s.w === s.t1 ? s.t2 : s.t1;
+      const barColor = pct >= 65 ? '#00ff41' : '#f85149';
+      probHTML += `<div class="prob-row">
+        <span class="prob-region" style="color:var(--mx)">FF</span>
+        <span class="prob-matchup"><strong>${s.w}</strong> vs ${loser}</span>
+        <span class="prob-pct" style="color:${barColor}">${pct}%</span>
+        <span class="prob-bar-wrap"><span class="prob-bar-fill" style="width:${pct}%;background:${barColor}"></span></span>
+      </div>`;
+    }
+  });
+
+  // Championship
+  const c = ff.champ;
+  if (c.w && c.t1 && c.t2) {
+    probHTML += `<div class="prob-round-label">Championship</div>`;
+    const prob = wp(c.w, c.w === c.t1 ? c.t2 : c.t1);
+    const pct = pctRaw(prob);
+    const loser = c.w === c.t1 ? c.t2 : c.t1;
+    probHTML += `<div class="prob-row">
+      <span class="prob-region" style="color:var(--mx)">★</span>
+      <span class="prob-matchup"><strong>${c.w}</strong> vs ${loser}</span>
+      <span class="prob-pct" style="color:var(--mx)">${pct}%</span>
+      <span class="prob-bar-wrap"><span class="prob-bar-fill" style="width:${pct}%;background:var(--mx)"></span></span>
+    </div>`;
+  }
+
+  probEl.innerHTML = probHTML;
+
+  // Show the section
+  document.getElementById('breakdownSection').style.display = 'block';
+}
+
+// ── AUTO FILL ENGINE ──
+let simNum = 0;
+async function runEngine(){
+  const btn=document.getElementById('calcBtn');
+  const bar=document.getElementById('progBar');
+  const pw=document.getElementById('progWrap');
+  const la=document.getElementById('logArea');
+  const li=document.getElementById('logInner');
+
+  // Reset first
+  resetAll();
+  document.getElementById('breakdownSection').style.display = 'none';
+  document.getElementById('upsetBadge').classList.remove('on');
+
+  btn.classList.add('running');
+  btn.querySelector('span').textContent='SIMULATING...';
+  pw.classList.add('on');
+  la.classList.add('on');
+  li.innerHTML='';
+
+  let elapsed=0;
+  const MAX_LOG=4;
+
+  function log(msg,cls){
+    elapsed+=70;
+    const ts=(elapsed/1000).toFixed(2)+'s';
+    const d=document.createElement('div');
+    d.className='ll';
+    d.innerHTML=`<span class="ts">[${ts}]</span> <span class="${cls||''}">${msg}</span>`;
+    li.appendChild(d);
+    while(li.children.length>MAX_LOG)li.removeChild(li.firstChild);
+  }
+
+  function prog(p){bar.style.width=p+'%';}
+
+  const wait=(ms)=>new Promise(r=>setTimeout(r,ms));
+
+  // Phase 1: Load data
+  log('Initializing bracket engine...'); prog(3); await wait(80);
+  log('Loading 68-team field...'); prog(6); await wait(70);
+  log('Parsing KenPom adjusted efficiency margins...'); prog(12); await wait(80);
+  log('Loading Torvik T-Rank recency-weighted ratings...',''); prog(18); await wait(70);
+
+  // Phase 2: Blend + Injuries
+  log('Blending KenPom + Torvik ratings (50/50)...'); prog(24); await wait(80);
+  log('Scanning injury reports...'); prog(28); await wait(70);
+  log('UNC: Wilson OUT (thumb) → -9.0','warn'); prog(31); await wait(65);
+  log('BYU: Saunders OUT (ACL) → -8.0','warn'); prog(34); await wait(65);
+  log('UCLA: Bilodeau/Dent uncertain → -6.0','warn'); prog(36); await wait(65);
+  log('Louisville: Brown day-to-day → -4.0','warn'); prog(38); await wait(65);
+  log('Duke: Foster OUT, Ngongba ? → -3.5','warn'); prog(40); await wait(60);
+  log('Michigan: Cason OUT (ACL) → -3.0','warn'); prog(42); await wait(60);
+  log('Injury deltas applied to blended ratings','ok'); prog(45); await wait(70);
+
+  // Phase 3: Compute R64
+  log('Log5: P(A) = 1/(1+10^(-ΔEM/12))','hi'); prog(48); await wait(80);
+
+  const regionOrder = ['EAST','WEST','SOUTH','MIDWEST'];
+  let pct = 50;
+
+  for(const rName of regionOrder){
+    log(`Round of 64 — ${rName}...`); prog(pct); await wait(50);
+    const r0 = regions[rName][0];
+    for(let mi=0;mi<r0.length;mi++){
+      const m=r0[mi];
+      const tn=modelPick(m.t1,m.t2);
+      pickRegion(rName,0,mi,tn);
+      await wait(25);
+    }
+    pct+=4;
+    prog(pct);
+  }
+  log('Round of 64 complete','ok'); await wait(60);
+
+  // Phase 4: R32
+  for(const rName of regionOrder){
+    log(`Round of 32 — ${rName}...`); prog(pct); await wait(40);
+    const r1 = regions[rName][1];
+    for(let mi=0;mi<r1.length;mi++){
+      const m=r1[mi];
+      const tn=modelPick(m.t1,m.t2);
+      pickRegion(rName,1,mi,tn);
+      await wait(30);
+    }
+    pct+=2;
+    prog(pct);
+  }
+  log('Round of 32 complete','ok'); await wait(60);
+
+  // Phase 5: S16
+  for(const rName of regionOrder){
+    log(`Sweet 16 — ${rName}...`); prog(pct); await wait(40);
+    const r2 = regions[rName][2];
+    for(let mi=0;mi<r2.length;mi++){
+      const m=r2[mi];
+      const tn=modelPick(m.t1,m.t2);
+      pickRegion(rName,2,mi,tn);
+      await wait(35);
+    }
+    pct+=2;
+    prog(pct);
+  }
+  log('Sweet 16 complete','ok'); await wait(60);
+
+  // Phase 6: E8
+  for(const rName of regionOrder){
+    log(`Elite 8 — ${rName} champion...`); prog(pct); await wait(50);
+    const r3 = regions[rName][3];
+    const m=r3[0];
+    const tn=modelPick(m.t1,m.t2);
+    pickRegion(rName,3,0,tn);
+    pct+=2;
+    prog(pct);
+    await wait(60);
+  }
+  log('Four region champions set','ok'); await wait(80);
+
+  // Phase 7: Final Four
+  prog(92);
+  log('Semifinal 1: EAST vs WEST...'); await wait(80);
+  const s1=ff.semi1;
+  pickSemi('semi1',modelPick(s1.t1,s1.t2));
+  await wait(80);
+
+  log('Semifinal 2: SOUTH vs MIDWEST...'); prog(95); await wait(80);
+  const s2=ff.semi2;
+  pickSemi('semi2',modelPick(s2.t1,s2.t2));
+  await wait(80);
+
+  // Phase 8: Championship
+  log('Simulating National Championship...','hi'); prog(98); await wait(100);
+  const ch=ff.champ;
+  pickChamp(modelPick(ch.t1,ch.t2));
+  prog(100);
+  await wait(60);
+
+  log(`★ Champion: ${ff.champ.w}`,`ok`); await wait(100);
+  simNum++;
+
+  // Quick count for log
+  let logUpsets = 0;
+  for (const rn of ['EAST','WEST','SOUTH','MIDWEST']) {
+    regions[rn].forEach(rd => rd.forEach(m => {
+      if (m.w && m.t1 && m.t2 && (m.w === m.t1 ? m.s1 : m.s2) > (m.w === m.t1 ? m.s2 : m.s1)) logUpsets++;
+    }));
+  }
+  log(`Simulation #${simNum} complete — ${logUpsets} upset${logUpsets===1?'':'s'}`, 'ok'); await wait(600);
+  document.getElementById('simCount').textContent = `Simulation #${simNum} — hit Simulate Again for a new bracket`;
+
+  // Populate breakdown
+  renderBreakdown();
+
+  // Count and show upsets
+  let upsetCount = 0;
+  for (const rName of ['EAST','WEST','SOUTH','MIDWEST']) {
+    regions[rName].forEach(round => {
+      round.forEach(m => {
+        if (m.w && m.t1 && m.t2) {
+          const winSeed = m.w === m.t1 ? m.s1 : m.s2;
+          const loseSeed = m.w === m.t1 ? m.s2 : m.s1;
+          if (winSeed > loseSeed) upsetCount++;
+        }
+      });
+    });
+  }
+  ['semi1','semi2'].forEach(sk => {
+    const s = ff[sk];
+    if (s.w && s.t1 && s.t2) {
+      const winSeed = s.w === s.t1 ? s.s1 : s.s2;
+      const loseSeed = s.w === s.t1 ? s.s2 : s.s1;
+      if (winSeed > loseSeed) upsetCount++;
+    }
+  });
+  if (ff.champ.w && ff.champ.t1 && ff.champ.t2) {
+    const winSeed = ff.champ.w === ff.champ.t1 ? ff.champ.s1 : ff.champ.s2;
+    const loseSeed = ff.champ.w === ff.champ.t1 ? ff.champ.s2 : ff.champ.s1;
+    if (winSeed > loseSeed) upsetCount++;
+  }
+  document.getElementById('upsetNum').textContent = upsetCount;
+  document.querySelector('.ub-label').textContent = upsetCount === 1 ? 'upset predicted' : 'upsets predicted';
+  document.getElementById('upsetBadge').classList.add('on');
+
+  // Fade out log
+  la.classList.remove('on');
+  pw.classList.remove('on');
+  setTimeout(()=>{li.innerHTML='';},400);
+
+  btn.classList.remove('running');
+  btn.querySelector('span').textContent='SIMULATE AGAIN';
+
+  // Show share button
+  document.getElementById('shareBtn').classList.add('on');
+}
+
+// ── SHARE FUNCTIONS ──
+
+function getUpsetCount() {
+  let count = 0;
+  for (const rName of ['EAST','WEST','SOUTH','MIDWEST']) {
+    regions[rName].forEach(round => {
+      round.forEach(m => {
+        if (m.w && m.t1 && m.t2) {
+          const wS = m.w === m.t1 ? m.s1 : m.s2;
+          const lS = m.w === m.t1 ? m.s2 : m.s1;
+          if (wS > lS) count++;
+        }
+      });
+    });
+  }
+  ['semi1','semi2'].forEach(sk => {
+    const s = ff[sk];
+    if (s.w && s.t1 && s.t2) {
+      const wS = s.w === s.t1 ? s.s1 : s.s2;
+      const lS = s.w === s.t1 ? s.s2 : s.s1;
+      if (wS > lS) count++;
+    }
+  });
+  if (ff.champ.w && ff.champ.t1 && ff.champ.t2) {
+    const wS = ff.champ.w === ff.champ.t1 ? ff.champ.s1 : ff.champ.s2;
+    const lS = ff.champ.w === ff.champ.t1 ? ff.champ.s2 : ff.champ.s1;
+    if (wS > lS) count++;
+  }
+  return count;
+}
+
+function getUpsetList() {
+  const roundNames = ['Round of 64', 'Round of 32', 'Sweet 16', 'Elite 8'];
+  let upsets = [];
+  for (const rName of ['EAST','WEST','SOUTH','MIDWEST']) {
+    regions[rName].forEach((round, ri) => {
+      round.forEach(m => {
+        if (m.w && m.t1 && m.t2) {
+          const wSeed = m.w === m.t1 ? m.s1 : m.s2;
+          const lSeed = m.w === m.t1 ? m.s2 : m.s1;
+          const loser = m.w === m.t1 ? m.t2 : m.t1;
+          if (wSeed > lSeed) {
+            upsets.push({ winner: m.w, wSeed, loser, lSeed, round: roundNames[ri], region: rName });
+          }
+        }
+      });
+    });
+  }
+  ['semi1','semi2'].forEach(sk => {
+    const s = ff[sk];
+    if (s.w && s.t1 && s.t2) {
+      const wSeed = s.w === s.t1 ? s.s1 : s.s2;
+      const lSeed = s.w === s.t1 ? s.s2 : s.s1;
+      const loser = s.w === s.t1 ? s.t2 : s.t1;
+      if (wSeed > lSeed) upsets.push({ winner: s.w, wSeed, loser, lSeed, round: 'Final Four', region: '' });
+    }
+  });
+  return upsets;
+}
+
+function getChampSeed() {
+  if (!ff.champ.w) return null;
+  return ff.champ.w === ff.champ.t1 ? ff.champ.s1 : ff.champ.s2;
+}
+
+function getElite8() {
+  let teams = [];
+  for (const rName of ['EAST','WEST','SOUTH','MIDWEST']) {
+    const e8 = regions[rName][3][0];
+    if (e8.w) {
+      const seed = e8.w === e8.t1 ? e8.s1 : e8.s2;
+      teams.push({ name: e8.w, seed, region: rName });
+    }
+  }
+  return teams;
+}
+
+const SITE_URL = 'https://bracketengine.locker';
+
+function generateShareText() {
+  if (!ff.champ.w) return '';
+  const champSeed = getChampSeed();
+  const e8 = getElite8();
+  const upsetCount = getUpsetCount();
+
+  let lines = [];
+  lines.push(`I used Bracket Engine to simulate my March Madness bracket. Blends KenPom + Torvik ratings with injury data.`);
+  lines.push('');
+  lines.push(`Champion: (${champSeed}) ${ff.champ.w}`);
+  lines.push(`Final Four: ${e8.map(t => `(${t.seed}) ${t.name}`).join('  /  ')}`);
+  if (upsetCount > 0) {
+    lines.push(`${upsetCount} upset${upsetCount === 1 ? '' : 's'} predicted`);
+  }
+  lines.push('');
+  lines.push(`Try it: ${SITE_URL}`);
+
+  return lines.join('\n');
+}
+
+function renderSharePreview() {
+  const el = document.getElementById('sharePreview');
+  if (!el || !ff.champ.w) return;
+  const champSeed = getChampSeed();
+  const e8 = getElite8();
+  const upsetCount = getUpsetCount();
+
+  let html = '';
+  html += `<span class="sp-heading">Champion</span>\n`;
+  html += `<span class="sp-champ">(${champSeed}) ${ff.champ.w}</span>\n\n`;
+  html += `<span class="sp-heading">Final Four</span>\n`;
+  for (const t of e8) {
+    html += `<span class="sp-team">${t.region}: (${t.seed}) ${t.name}</span>\n`;
+  }
+  if (upsetCount > 0) {
+    html += `\n<span class="sp-upset">${upsetCount} upset${upsetCount === 1 ? '' : 's'} predicted</span>\n`;
+  }
+  html += `\n<span class="sp-link">${SITE_URL}</span>`;
+  el.innerHTML = html;
+}
+
+function openSharePanel() {
+  renderSharePreview();
+  document.getElementById('shareOverlay').classList.add('on');
+}
+
+function closeSharePanel(e) {
+  if (e && e.target !== document.getElementById('shareOverlay')) return;
+  document.getElementById('shareOverlay').classList.remove('on');
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') document.getElementById('shareOverlay').classList.remove('on');
+});
+
+function showToast(msg) {
+  const t = document.getElementById('shareToast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+async function copyBracketText() {
+  const text = generateShareText();
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast('Copied to clipboard');
+  } catch {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;left:-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('Copied to clipboard');
+  }
+  closeSharePanel();
+}
+
+function shareTwitter() {
+  const text = generateShareText();
+  const url = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(text);
+  window.open(url, '_blank', 'width=600,height=400');
+  closeSharePanel();
+}
+
+function shareLinkedIn() {
+  const text = generateShareText();
+  const url = 'https://www.linkedin.com/feed/?shareActive=true&text=' + encodeURIComponent(text);
+  window.open(url, '_blank', 'width=700,height=500');
+  closeSharePanel();
+}
+
+function shareEmail() {
+  const text = generateShareText();
+  const subject = 'My March Madness 2026 Bracket — Bracket Engine';
+  const url = 'mailto:?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(text);
+  window.location.href = url;
+  closeSharePanel();
+}
+
+// ── INIT (after all definitions) ──
+initAll();
+renderAll();
+</script>
+</body>
+</html>
