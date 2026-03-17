@@ -8,7 +8,7 @@
 <meta property="og:title" content="March Madness 2026 — Bracket Engine">
 <meta property="og:description" content="Simulate your bracket with blended KenPom + Torvik ratings, injury adjustments, and weighted probabilities. Every run is different.">
 <meta property="og:type" content="website">
-<meta property="og:image" content="https://upload.wikimedia.org/wikipedia/en/thumb/2/28/March_Madness_logo.svg/1200px-March_Madness_logo.svg.png">
+<meta property="og:image" content="og-bracket-engine.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="March Madness 2026 — Bracket Engine">
 <meta name="twitter:description" content="Bracket simulator blending KenPom + Torvik ratings with injury adjustments. Every run is unique.">
@@ -569,6 +569,28 @@
   .share-btn:hover { border-color: rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.5); background: rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.1); color: #33ff66; }
   .share-btn svg { width: 14px; height: 14px; fill: currentColor; }
 
+  .export-btn {
+    padding: 8px 26px;
+    background: rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.06);
+    border: 1px solid rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.25);
+    color: var(--mx);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: none;
+    align-items: center;
+    gap: 6px;
+  }
+  .export-btn.on { display: inline-flex; }
+  .export-btn:hover { border-color: rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.5); background: rgba(var(--mx-r),var(--mx-g),var(--mx-b),0.1); color: #33ff66; }
+  .export-btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; }
+  .header-actions .export-btn { display: none; }
+  .header-actions .export-btn.on { display: inline-flex; }
+
   .share-overlay {
     position: fixed;
     inset: 0;
@@ -887,9 +909,9 @@
   @media (max-width: 768px) {
     body { padding: 12px 8px; }
 
-    .header h1 { font-size: 1.6rem; }
-    .header .tag { font-size: 0.72rem; letter-spacing: 2px; }
-    .header .subtitle { font-size: 0.75rem; }
+    .header h1 { font-size: 2.2rem; }
+    .header .tag { font-size: 0.95rem; letter-spacing: 2px; }
+    .header .subtitle { font-size: 0.95rem; line-height: 1.5; }
 
     .countdown-bar {
       flex-direction: column;
@@ -915,6 +937,7 @@
     .region-label { font-size: 0.75rem; }
     .reset-btn { font-size: 0.65rem; padding: 6px 14px; }
     .share-btn { font-size: 0.65rem; padding: 6px 14px; }
+    .export-btn { font-size: 0.65rem; padding: 6px 14px; }
     .share-panel { padding: 22px 20px; }
     .share-option { padding: 10px 12px; }
 
@@ -927,10 +950,10 @@
     body { padding: 8px 4px; }
 
     .header { margin-bottom: 8px; }
-    .header h1 { font-size: 1.4rem; }
-    .header .tag { font-size: 0.62rem; letter-spacing: 1.5px; margin-bottom: 4px; }
-    .header .subtitle { font-size: 0.68rem; }
-    .header .subtitle a { font-size: 0.62rem !important; }
+    .header h1 { font-size: 1.8rem; }
+    .header .tag { font-size: 0.85rem; letter-spacing: 1.5px; margin-bottom: 6px; }
+    .header .subtitle { font-size: 0.85rem; line-height: 1.5; }
+    .header .subtitle a { font-size: 0.8rem !important; }
 
     .countdown-bar { padding: 8px 8px; gap: 8px; margin-bottom: 8px; border-radius: 4px; }
     .cd-val { font-size: 1.05rem; min-width: 34px; padding: 2px 4px; }
@@ -1317,6 +1340,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
       <span>Share Bracket</span>
     </button>
+    <button class="export-btn" id="exportBtn" onclick="exportPicks()">
+      <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      <span>Export Picks</span>
+    </button>
   </div>
 </div>
 
@@ -1492,6 +1519,17 @@ const REGIONS = {
   ]
 };
 
+// Bracket layout & semifinal pairings for 2026.
+// Overall seed rankings determine everything:
+//   Semi 1: #1 overall region vs #4 overall  |  Semi 2: #2 overall vs #3 overall
+//   Layout: #1 top-left, #2 top-right, #4 bottom-left, #3 bottom-right
+const BRACKET_CONFIG = {
+  topLeft: 'EAST',     topRight: 'WEST',
+  bottomLeft: 'SOUTH', bottomRight: 'MIDWEST',
+  semi1: ['EAST', 'SOUTH'],    // #1 vs #4
+  semi2: ['WEST', 'MIDWEST'],  // #2 vs #3
+};
+
 const SIDE_ROUNDS = 4; // 8→4→2→1
 
 // ── State ──
@@ -1565,10 +1603,11 @@ function cascadeRegion(rName, ri, mi) {
 }
 
 function feedToFF(rName, name, seed) {
-  if (rName === 'EAST') { ff.semi1.t1 = name; ff.semi1.s1 = seed; clearSemi('semi1'); }
-  if (rName === 'WEST') { ff.semi1.t2 = name; ff.semi1.s2 = seed; clearSemi('semi1'); }
-  if (rName === 'SOUTH') { ff.semi2.t1 = name; ff.semi2.s1 = seed; clearSemi('semi2'); }
-  if (rName === 'MIDWEST') { ff.semi2.t2 = name; ff.semi2.s2 = seed; clearSemi('semi2'); }
+  const cfg = BRACKET_CONFIG;
+  if (rName === cfg.semi1[0]) { ff.semi1.t1 = name; ff.semi1.s1 = seed; clearSemi('semi1'); }
+  if (rName === cfg.semi1[1]) { ff.semi1.t2 = name; ff.semi1.s2 = seed; clearSemi('semi1'); }
+  if (rName === cfg.semi2[0]) { ff.semi2.t1 = name; ff.semi2.s1 = seed; clearSemi('semi2'); }
+  if (rName === cfg.semi2[1]) { ff.semi2.t2 = name; ff.semi2.s2 = seed; clearSemi('semi2'); }
 }
 
 function clearSemi(sKey) {
@@ -1598,6 +1637,8 @@ function pickChamp(tn) {
   const name = tn === 1 ? ff.champ.t1 : ff.champ.t2;
   if (!name) return;
   ff.champ.w = name;
+  document.getElementById('shareBtn').classList.add('on');
+  document.getElementById('exportBtn').classList.add('on');
   renderAll();
 }
 
@@ -1825,11 +1866,12 @@ function renderFinalFour() {
 }
 
 function renderAll() {
-  renderLabels('top-labels', 'EAST', 'WEST');
-  renderHalf('topRow', 'EAST', 'WEST');
+  const cfg = BRACKET_CONFIG;
+  renderLabels('top-labels', cfg.topLeft, cfg.topRight);
+  renderHalf('topRow', cfg.topLeft, cfg.topRight);
   renderFinalFour();
-  renderLabels('bot-labels', 'SOUTH', 'MIDWEST');
-  renderHalf('botRow', 'SOUTH', 'MIDWEST');
+  renderLabels('bot-labels', cfg.bottomLeft, cfg.bottomRight);
+  renderHalf('botRow', cfg.bottomLeft, cfg.bottomRight);
   renderMobile();
 }
 
@@ -1881,7 +1923,7 @@ function renderMobile() {
 
   ['semi1', 'semi2'].forEach((sk, si) => {
     const s = ff[sk];
-    const label = si === 0 ? 'EAST vs WEST' : 'SOUTH vs MIDWEST';
+    const label = si === 0 ? `${BRACKET_CONFIG.semi1[0]} vs ${BRACKET_CONFIG.semi1[1]}` : `${BRACKET_CONFIG.semi2[0]} vs ${BRACKET_CONFIG.semi2[1]}`;
     html += `<div class="mb-region-label" style="color:var(--mx)">${label}</div>`;
 
     const probText = (s.t1 && s.t2 && MODEL[s.t1] && MODEL[s.t2]) ?
@@ -1966,6 +2008,8 @@ function resetAll() {
   if (ub) ub.classList.remove('on');
   const sb = document.getElementById('shareBtn');
   if (sb) sb.classList.remove('on');
+  const eb = document.getElementById('exportBtn');
+  if (eb) eb.classList.remove('on');
 }
 
 // init moved to end of script after all definitions
@@ -2348,12 +2392,12 @@ async function runEngine(){
 
   // Phase 7: Final Four
   prog(92);
-  log('Semifinal 1: EAST vs WEST...'); await wait(80);
+  log(`Semifinal 1: ${BRACKET_CONFIG.semi1[0]} vs ${BRACKET_CONFIG.semi1[1]}...`); await wait(80);
   const s1=ff.semi1;
   pickSemi('semi1',modelPick(s1.t1,s1.t2));
   await wait(80);
 
-  log('Semifinal 2: SOUTH vs MIDWEST...'); prog(95); await wait(80);
+  log(`Semifinal 2: ${BRACKET_CONFIG.semi2[0]} vs ${BRACKET_CONFIG.semi2[1]}...`); prog(95); await wait(80);
   const s2=ff.semi2;
   pickSemi('semi2',modelPick(s2.t1,s2.t2));
   await wait(80);
@@ -2419,8 +2463,9 @@ async function runEngine(){
   btn.classList.remove('running');
   btn.querySelector('span').textContent='SIMULATE AGAIN';
 
-  // Show share button
+  // Show share and export buttons
   document.getElementById('shareBtn').classList.add('on');
+  document.getElementById('exportBtn').classList.add('on');
 }
 
 // ── SHARE FUNCTIONS ──
@@ -2601,6 +2646,84 @@ function shareEmail() {
   const url = 'mailto:?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(text);
   window.location.href = url;
   closeSharePanel();
+}
+
+// ── EXPORT PICKS ──
+
+function exportPicks() {
+  const roundNames = ['Round of 64', 'Round of 32', 'Sweet 16', 'Elite 8'];
+  const cfg = BRACKET_CONFIG;
+  const regionOrder = [cfg.topLeft, cfg.topRight, cfg.bottomLeft, cfg.bottomRight];
+  const picks = { regions: {}, finalFour: {}, champion: null };
+
+  for (const rName of regionOrder) {
+    const rPicks = {};
+    regions[rName].forEach((round, ri) => {
+      const games = [];
+      round.forEach(m => {
+        if (m.t1 || m.t2) {
+          games.push({
+            matchup: [
+              m.s1 ? `(${m.s1}) ${m.t1}` : m.t1 || 'TBD',
+              m.s2 ? `(${m.s2}) ${m.t2}` : m.t2 || 'TBD'
+            ],
+            winner: m.w || null
+          });
+        }
+      });
+      if (games.length) rPicks[roundNames[ri]] = games;
+    });
+    picks.regions[rName] = rPicks;
+  }
+
+  // Semifinal picks
+  const s1 = ff.semi1;
+  const s2 = ff.semi2;
+  picks.finalFour = {
+    semifinal1: {
+      label: `${cfg.semi1[0]} vs ${cfg.semi1[1]}`,
+      matchup: [
+        s1.s1 ? `(${s1.s1}) ${s1.t1}` : s1.t1 || 'TBD',
+        s1.s2 ? `(${s1.s2}) ${s1.t2}` : s1.t2 || 'TBD'
+      ],
+      winner: s1.w || null
+    },
+    semifinal2: {
+      label: `${cfg.semi2[0]} vs ${cfg.semi2[1]}`,
+      matchup: [
+        s2.s1 ? `(${s2.s1}) ${s2.t1}` : s2.t1 || 'TBD',
+        s2.s2 ? `(${s2.s2}) ${s2.t2}` : s2.t2 || 'TBD'
+      ],
+      winner: s2.w || null
+    }
+  };
+
+  // Championship
+  const c = ff.champ;
+  picks.championship = {
+    matchup: [
+      c.s1 ? `(${c.s1}) ${c.t1}` : c.t1 || 'TBD',
+      c.s2 ? `(${c.s2}) ${c.t2}` : c.t2 || 'TBD'
+    ],
+    winner: c.w || null
+  };
+  picks.champion = c.w || null;
+
+  const json = JSON.stringify(picks, null, 2);
+  const prompt = `Here are my March Madness 2026 bracket picks. Go to https://fantasy.espn.com/games/tournament-challenge-bracket-2026 and fill in my bracket by clicking the winning team in each matchup, round by round, starting from the Round of 64.\n\n${json}`;
+
+  navigator.clipboard.writeText(prompt).then(() => {
+    showToast('Picks copied — paste into Claude');
+  }).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = prompt;
+    ta.style.cssText = 'position:fixed;left:-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('Picks copied — paste into Claude');
+  });
 }
 
 // ── INIT (after all definitions) ──
