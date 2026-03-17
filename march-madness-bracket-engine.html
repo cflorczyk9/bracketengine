@@ -1012,7 +1012,31 @@
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    margin-bottom: 4px;
+    margin-bottom: 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    user-select: none;
+    transition: opacity 0.15s;
+  }
+  .bd-card-title:hover { opacity: 0.8; }
+  .bd-card-title .bd-chevron {
+    font-size: 0.6rem;
+    transition: transform 0.2s;
+    color: rgba(255,255,255,0.2);
+  }
+  .bd-card-title.open .bd-chevron { transform: rotate(90deg); }
+  .bd-card-body {
+    overflow: hidden;
+    max-height: 0;
+    transition: max-height 0.3s ease;
+  }
+  .bd-card-body.open {
+    max-height: 5000px;
+  }
+  .bd-card-body .bd-card-sub:first-child {
+    margin-top: 4px;
   }
   .bd-card-sub {
     font-family: 'IBM Plex Mono', monospace;
@@ -1058,11 +1082,32 @@
     text-transform: uppercase;
     color: rgba(255,255,255,0.35);
     margin-top: 14px;
-    margin-bottom: 6px;
-    padding-bottom: 4px;
+    margin-bottom: 0;
+    padding: 6px 0 6px 0;
     border-bottom: 1px solid rgba(255,255,255,0.04);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    user-select: none;
+    transition: color 0.15s;
   }
+  .prob-round-label:hover { color: rgba(255,255,255,0.55); }
   .prob-round-label:first-child { margin-top: 0; }
+  .prob-round-label .prob-chevron {
+    font-size: 0.6rem;
+    transition: transform 0.2s;
+    color: rgba(255,255,255,0.2);
+  }
+  .prob-round-label.open .prob-chevron { transform: rotate(90deg); }
+  .prob-round-body {
+    overflow: hidden;
+    max-height: 0;
+    transition: max-height 0.3s ease;
+  }
+  .prob-round-body.open {
+    max-height: 2000px;
+  }
 
   .prob-row {
     display: flex;
@@ -1354,22 +1399,28 @@
 
   <div class="bd-grid">
     <div class="bd-card">
-      <div class="bd-card-title" style="color:var(--mx)">Injury Adjustments</div>
-      <div class="bd-card-sub">Applied to blended rating after KenPom + Torvik merge</div>
-      <div id="injuryTable"></div>
+      <div class="bd-card-title" style="color:var(--mx)" onclick="toggleBdCard(this)"><span>Injury Adjustments</span><span class="bd-chevron">▶</span></div>
+      <div class="bd-card-body">
+        <div class="bd-card-sub">Applied to blended rating after KenPom + Torvik merge</div>
+        <div id="injuryTable"></div>
+      </div>
     </div>
 
     <div class="bd-card">
-      <div class="bd-card-title" style="color:var(--mx)">Upset Picks</div>
-      <div class="bd-card-sub">Games where the model favors the lower seed</div>
-      <div id="upsetTable"></div>
+      <div class="bd-card-title" style="color:var(--mx)" onclick="toggleBdCard(this)"><span>Upset Picks</span><span class="bd-chevron">▶</span></div>
+      <div class="bd-card-body">
+        <div class="bd-card-sub">Games where the model favors the lower seed</div>
+        <div id="upsetTable"></div>
+      </div>
     </div>
   </div>
 
   <div class="bd-card bd-card-wide">
-    <div class="bd-card-title" style="color:var(--mx)">Round-by-Round Win Probabilities</div>
-    <div class="bd-card-sub">Model confidence for each predicted winner</div>
-    <div id="probTable"></div>
+    <div class="bd-card-title" style="color:var(--mx)" onclick="toggleBdCard(this)"><span>Round-by-Round Win Probabilities</span><span class="bd-chevron">▶</span></div>
+    <div class="bd-card-body">
+      <div class="bd-card-sub">Model confidence for each predicted winner</div>
+      <div id="probTable"></div>
+    </div>
   </div>
 
   <div class="bd-card bd-card-wide">
@@ -2028,6 +2079,18 @@ const INJURY_DATA = [
   { team: 'Ohio State', delta: -0.5, detail: 'Chatman limited minutes.' },
 ];
 
+function toggleProbRound(label) {
+  label.classList.toggle('open');
+  const body = label.nextElementSibling;
+  if (body) body.classList.toggle('open');
+}
+
+function toggleBdCard(title) {
+  title.classList.toggle('open');
+  const body = title.nextElementSibling;
+  if (body) body.classList.toggle('open');
+}
+
 function renderBreakdown() {
   // Injuries
   const injEl = document.getElementById('injuryTable');
@@ -2092,7 +2155,8 @@ function renderBreakdown() {
   let probHTML = '';
 
   for (let ri = 0; ri < 4; ri++) {
-    probHTML += `<div class="prob-round-label">${roundLabels[ri]}</div>`;
+    probHTML += `<div class="prob-round-label" onclick="toggleProbRound(this)"><span>${roundLabels[ri]}</span><span class="prob-chevron">▶</span></div>`;
+    probHTML += `<div class="prob-round-body">`;
     for (const rName of ['EAST','WEST','SOUTH','MIDWEST']) {
       const round = regions[rName][ri];
       round.forEach(m => {
@@ -2111,10 +2175,12 @@ function renderBreakdown() {
         }
       });
     }
+    probHTML += `</div>`;
   }
 
   // Final Four
-  probHTML += `<div class="prob-round-label">Final Four</div>`;
+  probHTML += `<div class="prob-round-label" onclick="toggleProbRound(this)"><span>Final Four</span><span class="prob-chevron">▶</span></div>`;
+  probHTML += `<div class="prob-round-body">`;
   ['semi1','semi2'].forEach(sk => {
     const s = ff[sk];
     if (s.w && s.t1 && s.t2) {
@@ -2130,11 +2196,13 @@ function renderBreakdown() {
       </div>`;
     }
   });
+  probHTML += `</div>`;
 
   // Championship
   const c = ff.champ;
   if (c.w && c.t1 && c.t2) {
-    probHTML += `<div class="prob-round-label">Championship</div>`;
+    probHTML += `<div class="prob-round-label" onclick="toggleProbRound(this)"><span>Championship</span><span class="prob-chevron">▶</span></div>`;
+    probHTML += `<div class="prob-round-body">`;
     const prob = wp(c.w, c.w === c.t1 ? c.t2 : c.t1);
     const pct = pctRaw(prob);
     const loser = c.w === c.t1 ? c.t2 : c.t1;
@@ -2144,6 +2212,7 @@ function renderBreakdown() {
       <span class="prob-pct" style="color:var(--mx)">${pct}%</span>
       <span class="prob-bar-wrap"><span class="prob-bar-fill" style="width:${pct}%;background:var(--mx)"></span></span>
     </div>`;
+    probHTML += `</div>`;
   }
 
   probEl.innerHTML = probHTML;
