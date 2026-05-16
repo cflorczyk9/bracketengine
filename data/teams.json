@@ -1,0 +1,87 @@
+{
+  "_meta": {
+    "source": "KenPom AdjEM + Bart Torvik T-Rank, manual injury deltas",
+    "as_of": "2026-03-16",
+    "note": "Teams within a region are in bracket order: 1,16,8,9,5,12,4,13,6,11,3,14,7,10,2,15. Pairs of consecutive entries form first-round matchups."
+  },
+  "regions": {
+    "EAST": [
+      { "seed": 1,  "name": "Duke",          "kp": 33.5, "torvik": 37.4, "injury_delta": -3.5, "injury_note": "Caleb Foster OUT (foot surgery); Ngongba questionable (foot)." },
+      { "seed": 16, "name": "Siena",         "kp": -2.0, "torvik": -1.7 },
+      { "seed": 8,  "name": "Ohio State",    "kp": 17.5, "torvik": 23.6, "injury_delta": -0.5, "injury_note": "Chatman limited minutes." },
+      { "seed": 9,  "name": "TCU",           "kp": 16.0, "torvik": 15.3 },
+      { "seed": 5,  "name": "St. John's",    "kp": 22.5, "torvik": 25.7 },
+      { "seed": 12, "name": "N. Iowa",       "kp": 14.0, "torvik": 11.1 },
+      { "seed": 4,  "name": "Kansas",        "kp": 23.5, "torvik": 23.4 },
+      { "seed": 13, "name": "CA Baptist",    "kp": 4.5,  "torvik": 7.2 },
+      { "seed": 6,  "name": "Louisville",    "kp": 21.0, "torvik": 25.8, "injury_delta": -4.0, "injury_note": "Mikel Brown day-to-day (back). Out since Feb 28." },
+      { "seed": 11, "name": "S. Florida",    "kp": 13.0, "torvik": 15.4 },
+      { "seed": 3,  "name": "Michigan St",   "kp": 27.0, "torvik": 26.7 },
+      { "seed": 14, "name": "N Dakota St",   "kp": 1.0,  "torvik": 5.4 },
+      { "seed": 7,  "name": "UCLA",          "kp": 25.5, "torvik": 22.7, "injury_delta": -6.0, "injury_note": "Bilodeau questionable (knee); Dent uncertain (calf)." },
+      { "seed": 10, "name": "UCF",           "kp": 18.0, "torvik": 14.3 },
+      { "seed": 2,  "name": "UConn",         "kp": 27.5, "torvik": 28.1 },
+      { "seed": 15, "name": "Furman",        "kp": 8.0,  "torvik": -2.1 }
+    ],
+    "WEST": [
+      { "seed": 1,  "name": "Arizona",       "kp": 32.5, "torvik": 35.5 },
+      { "seed": 16, "name": "Long Island",   "kp": -8.0, "torvik": -6.2 },
+      { "seed": 8,  "name": "Villanova",     "kp": 18.5, "torvik": 19.1 },
+      { "seed": 9,  "name": "Utah State",    "kp": 18.8, "torvik": 20.9 },
+      { "seed": 5,  "name": "Wisconsin",     "kp": 21.5, "torvik": 25.6 },
+      { "seed": 12, "name": "High Point",    "kp": 11.0, "torvik": 8.2 },
+      { "seed": 4,  "name": "Arkansas",      "kp": 24.5, "torvik": 26.2 },
+      { "seed": 13, "name": "Hawai'i",       "kp": 6.0,  "torvik": 5.1 },
+      { "seed": 6,  "name": "BYU",           "kp": 26.0, "torvik": 20.4, "injury_delta": -8.0, "injury_note": "Richie Saunders OUT (torn ACL). Team 4-9 without him." },
+      { "seed": 11, "name": "TEX/NCSU",      "kp": 17.0, "torvik": 18.5 },
+      { "seed": 3,  "name": "Gonzaga",       "kp": 25.0, "torvik": 26.3, "injury_delta": -2.0, "injury_note": "Braden Huff OUT (knee). Unlikely first 2 games." },
+      { "seed": 14, "name": "Kennesaw St",   "kp": -0.5, "torvik": 1.3 },
+      { "seed": 7,  "name": "Miami",         "kp": 19.0, "torvik": 19.6 },
+      { "seed": 10, "name": "Missouri",      "kp": 15.5, "torvik": 16.9 },
+      { "seed": 2,  "name": "Purdue",        "kp": 26.5, "torvik": 33.0 },
+      { "seed": 15, "name": "Queens",        "kp": -1.5, "torvik": -2.4 }
+    ],
+    "SOUTH": [
+      { "seed": 1,  "name": "Florida",       "kp": 29.5, "torvik": 33.8 },
+      { "seed": 16, "name": "PV/LEH",        "kp": -10.0,"torvik": -10.0 },
+      { "seed": 8,  "name": "Clemson",       "kp": 15.5, "torvik": 19.6, "injury_delta": -2.5, "injury_note": "Carter Welling OUT (torn ACL in ACC tourney)." },
+      { "seed": 9,  "name": "Iowa",          "kp": 18.0, "torvik": 21.9 },
+      { "seed": 5,  "name": "Vanderbilt",    "kp": 25.0, "torvik": 28.2 },
+      { "seed": 12, "name": "McNeese",       "kp": 9.0,  "torvik": 11.0 },
+      { "seed": 4,  "name": "Nebraska",      "kp": 24.5, "torvik": 23.7 },
+      { "seed": 13, "name": "Troy",          "kp": 5.5,  "torvik": 1.7 },
+      { "seed": 6,  "name": "N. Carolina",   "kp": 23.0, "torvik": 21.4, "injury_delta": -9.0, "injury_note": "Caleb Wilson OUT (thumb, season-ending). 0-2 without him." },
+      { "seed": 11, "name": "VCU",           "kp": 15.5, "torvik": 16.2 },
+      { "seed": 3,  "name": "Illinois",      "kp": 28.0, "torvik": 33.7 },
+      { "seed": 14, "name": "Penn",          "kp": 8.5,  "torvik": 1.2 },
+      { "seed": 7,  "name": "Saint Mary's",  "kp": 22.5, "torvik": 21.8 },
+      { "seed": 10, "name": "Texas A&M",     "kp": 16.0, "torvik": 18.5 },
+      { "seed": 2,  "name": "Houston",       "kp": 29.0, "torvik": 33.0 },
+      { "seed": 15, "name": "Idaho",         "kp": 2.5,  "torvik": 2.6 }
+    ],
+    "MIDWEST": [
+      { "seed": 1,  "name": "Michigan",      "kp": 31.5, "torvik": 36.6, "injury_delta": -3.0, "injury_note": "L.J. Cason OUT (torn ACL)." },
+      { "seed": 16, "name": "UMBC/HOW",      "kp": 3.5,  "torvik": -2.0 },
+      { "seed": 8,  "name": "Georgia",       "kp": 18.0, "torvik": 19.5 },
+      { "seed": 9,  "name": "Saint Louis",   "kp": 15.5, "torvik": 17.3 },
+      { "seed": 5,  "name": "Texas Tech",    "kp": 22.0, "torvik": 27.5, "injury_delta": -1.5, "injury_note": "Watts questionable (foot)." },
+      { "seed": 12, "name": "Akron",         "kp": 10.5, "torvik": 11.8 },
+      { "seed": 4,  "name": "Alabama",       "kp": 24.0, "torvik": 26.7, "injury_delta": -3.0, "injury_note": "Holloway arrested. Status unclear for tournament." },
+      { "seed": 13, "name": "Hofstra",       "kp": 5.5,  "torvik": 8.3 },
+      { "seed": 6,  "name": "Tennessee",     "kp": 24.5, "torvik": 26.0 },
+      { "seed": 11, "name": "M-OH/SMU",      "kp": 13.5, "torvik": 13.5 },
+      { "seed": 3,  "name": "Virginia",      "kp": 24.5, "torvik": 26.5 },
+      { "seed": 14, "name": "Wright St",     "kp": 7.0,  "torvik": 3.4 },
+      { "seed": 7,  "name": "Kentucky",      "kp": 20.0, "torvik": 19.9, "injury_delta": -2.0, "injury_note": "Quaintance unlikely (knee); Knox OUT (meniscus)." },
+      { "seed": 10, "name": "Santa Clara",   "kp": 20.5, "torvik": 21.3 },
+      { "seed": 2,  "name": "Iowa State",    "kp": 28.0, "torvik": 31.2 },
+      { "seed": 15, "name": "Tennessee St",  "kp": -6.0, "torvik": -4.1 }
+    ]
+  },
+  "bracket": {
+    "topLeft": "EAST",     "topRight": "WEST",
+    "bottomLeft": "SOUTH", "bottomRight": "MIDWEST",
+    "semi1": ["EAST", "SOUTH"],
+    "semi2": ["WEST", "MIDWEST"]
+  }
+}
